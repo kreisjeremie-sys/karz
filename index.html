@@ -281,19 +281,23 @@ body{background:#f5f5f5;color:#111;font-size:13px;font-family:-apple-system,Blin
           <option value="B">Essence</option>
           <option value="D">Diesel</option>
           <option value="E">Électrique</option>
-          <option value="H">Hybride</option>
+          <option value="2">Hybride (essence)</option>
+          <option value="3">Hybride (diesel)</option>
         </select>
       </div>
-      <div class="fg"><label>Pays</label>
-        <select id="s-country" onchange="updatePreview()">
-          <option value="DE">🇩🇪 Allemagne</option>
-          <option value="FR">🇫🇷 France</option>
-          <option value="IT">🇮🇹 Italie</option>
-          <option value="ES">🇪🇸 Espagne</option>
-          <option value="NL">🇳🇱 Pays-Bas</option>
-          <option value="BE">🇧🇪 Belgique</option>
-          <option value="AT">🇦🇹 Autriche</option>
-        </select>
+      <div class="fg" style="grid-column:span 2">
+        <label>Pays <span style="font-weight:400;color:#aaa;font-size:9px;text-transform:none">(choix multiple)</span></label>
+        <div id="s-countries" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" value="DE" checked onchange="updatePreview()" style="accent-color:#1D9E75;width:13px;height:13px"> 🇩🇪 DE</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" value="FR" onchange="updatePreview()" style="accent-color:#1D9E75;width:13px;height:13px"> 🇫🇷 FR</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" value="IT" onchange="updatePreview()" style="accent-color:#1D9E75;width:13px;height:13px"> 🇮🇹 IT</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" value="ES" onchange="updatePreview()" style="accent-color:#1D9E75;width:13px;height:13px"> 🇪🇸 ES</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" value="NL" onchange="updatePreview()" style="accent-color:#1D9E75;width:13px;height:13px"> 🇳🇱 NL</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" value="BE" onchange="updatePreview()" style="accent-color:#1D9E75;width:13px;height:13px"> 🇧🇪 BE</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" value="AT" onchange="updatePreview()" style="accent-color:#1D9E75;width:13px;height:13px"> 🇦🇹 AT</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" value="PT" onchange="updatePreview()" style="accent-color:#1D9E75;width:13px;height:13px"> 🇵🇹 PT</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:0"><input type="checkbox" value="UK" onchange="updatePreview()" style="accent-color:#1D9E75;width:13px;height:13px"> 🇬🇧 UK</label>
+        </div>
       </div>
       <div class="fg"><label>Année min</label><input type="number" id="s-ymin" placeholder="2020" oninput="updatePreview()"/></div>
       <div class="fg"><label>Année max</label><input type="number" id="s-ymax" placeholder="2025" oninput="updatePreview()"/></div>
@@ -530,7 +534,7 @@ const SPECS = {
 // ═══════════════════════════════════════════════════════════════
 let PARAMS = {
   fx:      {v:1.05,   l:'Taux EUR/CHF',               u:'CHF/EUR', isH:true,  src:'BNS indicatif — à mettre à jour avant chaque calcul',    ref:null,          by:'—',at:'—'},
-  transport:{v:800,   l:'Transport EU→GVA (prof.)',    u:'CHF',     isH:true,  src:'Fourchette réelle : CHF 200–500 (personnel) ou 800–1500 (transporteur) — source AutoScout24.ch guide import. Valeur médiane professionnelle retenue.',ref:null,by:'—',at:'—'},
+  transport:{v:1500,  l:'Transport EU→GVA (prof.)',    u:'CHF',     isH:true,  src:'Fourchette réelle : CHF 200–500 (personnel) ou 800–1500 (transporteur) — source AutoScout24.ch guide import. Valeur haute retenue par prudence.',ref:null,by:'—',at:'—'},
   // Frais fixes VÉRIFIÉS (non modifiables) :
   // CHF 20  = rapport douane OFDF (bazg.admin.ch)
   // CHF 60  = expertise canton (source zurich.ch import guide)
@@ -613,12 +617,11 @@ function calcCO2Penalty(co2_wltp, kg_vide, monthsRegistered, kmCurrent) {
 // ═══════════════════════════════════════════════════════════════
 // CALCUL LANDED COST — formule vérifiée
 // ═══════════════════════════════════════════════════════════════
-function calcLanded(prixBase_CHF, isHT, spec, monthsReg, kmCurrent) {
+function calcLanded(prixBase_CHF, isHT, spec, monthsReg, kmCurrent, customTransport) {
   // prixBase_CHF = prix en CHF (HT si vendeur pro, TTC si privé)
-  // Si vendeur privé (TTC), on ne touche pas — la TVA étrangère est déjà incluse
-  // et ne peut pas être récupérée
+  // customTransport : override transport pour ce deal spécifique (optionnel)
   const fx = PARAMS.fx.v;
-  const transport = PARAMS.transport.v;
+  const transport = customTransport !== undefined ? customTransport : PARAMS.transport.v;
 
   // Base de calcul pour les taxes suisses = prix + transport
   const baseForTax = prixBase_CHF + transport;
@@ -659,8 +662,10 @@ function getUser(){ return localStorage.getItem('karz9_user')||'—'; }
 function profD(d) {
   const spec = SPECS[d.brand+' '+d.model];
   if (!spec) return 0;
+  const vatRateOrigin = {DE:0.19,FR:0.20,IT:0.22,ES:0.21,NL:0.21,BE:0.21,AT:0.20,PT:0.23,UK:0.20}[d.country]||0.20;
   const eur_chf = (d.eurPrice||0) * PARAMS.fx.v;
-  const l = calcLanded(eur_chf, d.isHT, spec, d.monthsReg||99, d.km||50000);
+  const prixHT_CHF = d.isHT ? Math.round(eur_chf/(1+vatRateOrigin)) : eur_chf;
+  const l = calcLanded(prixHT_CHF, d.isHT, spec, d.monthsReg||99, d.km||50000, d.customTransport);
   return Math.round(spec.r - l.total);
 }
 
@@ -756,8 +761,10 @@ function buildUrl() {
   const make    = document.getElementById('s-brand').value;
   const model   = document.getElementById('s-model').value;
   const fuel    = document.getElementById('s-fuel').value;
-  const cc      = document.getElementById('s-country').value || 'DE';
-  const cy      = CY[cc] || cc;
+  // Récupérer tous les pays cochés
+  const checkedCountries = Array.from(document.querySelectorAll('#s-countries input:checked')).map(el=>el.value);
+  const cc      = checkedCountries.length === 1 ? checkedCountries[0] : (checkedCountries[0] || 'DE');
+  const cy      = checkedCountries.length > 0 ? checkedCountries.map(c=>CY[c]||c).join(',') : 'D';
   const ymin    = document.getElementById('s-ymin').value;
   const ymax    = document.getElementById('s-ymax').value;
   const kmax    = document.getElementById('s-kmax').value;
@@ -773,7 +780,9 @@ function buildUrl() {
   if (ymax)  p.set('fregto', ymax);
   if (kmax)  p.set('kmto', kmax);
   if (pmax)  p.set('priceto', pmax);
-  if (fuel)  p.set('fuel', fuel);
+  // Note: le filtre motorisation est appliqué côté client après le scrape
+  // pour éviter que le filtre URL ne réduise trop les résultats Apify
+  // if (fuel) p.set('fuel', fuel);  // désactivé volontairement
   if (stype === 'pro')     p.set('osp', 'B'); // pro dealers
   if (stype === 'private') p.set('osp', 'P'); // private
   return url + '?' + p.toString();
@@ -781,7 +790,11 @@ function buildUrl() {
 
 function updatePreview() {
   const el = document.getElementById('url-prev');
-  el.textContent = '→ '+buildUrl();
+  const fuelVal = document.getElementById('s-fuel')?.value;
+  const fuelNote = fuelVal ? ` [filtre moteur client]` : '';
+  const selCountries = Array.from(document.querySelectorAll('#s-countries input:checked')).map(el=>el.value);
+  const countryNote = selCountries.length > 1 ? ` [${selCountries.length} pays: ${selCountries.join('+')}]` : '';
+  el.textContent = '→ '+buildUrl()+fuelNote+countryNote;
   el.classList.add('show');
 }
 
@@ -789,33 +802,62 @@ function resetSearch() {
   ['s-brand','s-model','s-fuel','s-ymin','s-ymax','s-kmax','s-pmax','s-mmin','s-dommax','s-sellertype'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
+  // Reset pays : seulement Allemagne cochée par défaut
+  document.querySelectorAll('#s-countries input').forEach(cb=>{
+    cb.checked = cb.value === 'DE';
+  });
   document.getElementById('results-area').innerHTML='';
   document.getElementById('url-prev').classList.remove('show');
 }
 
 async function runSearch() {
-  const searchUrl = buildUrl();
   const maxItems  = parseInt(document.getElementById('s-max').value)||20;
   const mmin      = parseInt(document.getElementById('s-mmin').value)||0;
   const dommax    = parseInt(document.getElementById('s-dommax').value)||9999;
   const area      = document.getElementById('results-area');
+  const countries = Array.from(document.querySelectorAll('#s-countries input:checked')).map(el=>el.value);
+  if (countries.length === 0) {
+    document.getElementById('search-msg').textContent = '⚠ Sélectionnez au moins un pays.';
+    document.getElementById('search-msg').style.color = '#cc0000';
+    return;
+  }
 
-  area.innerHTML = `<div class="loading"><div class="spinner"></div><div style="font-size:13px;font-weight:600;color:#333">Recherche Apify en cours…</div><div style="font-size:11px;color:#aaa;margin-top:6px">AutoScout24 · ~30–60 secondes</div></div>`;
+  area.innerHTML = `<div class="loading"><div class="spinner"></div><div style="font-size:13px;font-weight:600;color:#333">Recherche en cours…</div><div style="font-size:11px;color:#aaa;margin-top:6px">AutoScout24 · ${countries.length} pays · ~${countries.length*20}–${countries.length*40}s</div></div>`;
   document.getElementById('search-msg').textContent = '';
   document.getElementById('apify-st').textContent = '⟳ En cours…';
   document.getElementById('apify-st').className = 'tbadge tb-no';
 
   try {
-    const resp = await fetch('/api/search', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({searchUrl, maxItems, mode:'search'})
+    // Un scrape par pays, résultats fusionnés
+    const make  = document.getElementById('s-brand').value;
+    const model = document.getElementById('s-model').value;
+    const ymin  = document.getElementById('s-ymin').value;
+    const ymax  = document.getElementById('s-ymax').value;
+    const kmax  = document.getElementById('s-kmax').value;
+    const pmax  = document.getElementById('s-pmax').value;
+    const perCountry = Math.ceil(maxItems / countries.length);
+
+    const promises = countries.map(cc => {
+      let url = 'https://www.autoscout24.com/lst';
+      if (make) url += '/'+make;
+      if (make && model) url += '/'+model;
+      const p = new URLSearchParams({atype:'C', cy:CY[cc]||cc, ustate:'U', sort:'age', desc:'1'});
+      if (ymin) p.set('fregfrom',ymin);
+      if (ymax) p.set('fregto',ymax);
+      if (kmax) p.set('kmto',kmax);
+      if (pmax) p.set('priceto',pmax);
+      return fetch('/api/search',{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({searchUrl: url+'?'+p.toString(), maxItems: perCountry, mode:'search'})
+      }).then(r=>r.ok?r.json():Promise.resolve({items:[]})).then(d=>d.items||[]).catch(()=>[]);
     });
-    if (!resp.ok) { const e=await resp.json().catch(()=>({error:`HTTP ${resp.status}`})); throw new Error(e.error||`HTTP ${resp.status}`); }
-    const {items, actor} = await resp.json();
+
+    const results = await Promise.all(promises);
+    const allItems = results.flat();
+    const actor = 'multi-country';
     document.getElementById('apify-st').textContent = '● Apify OK';
     document.getElementById('apify-st').className = 'tbadge tb-ok';
-    renderResults(items, actor, mmin, dommax);
+    renderResults(allItems, actor, mmin, dommax);
   } catch(e) {
     document.getElementById('apify-st').textContent = '⚠ Erreur Apify';
     document.getElementById('apify-st').className = 'tbadge';
@@ -825,29 +867,82 @@ async function runSearch() {
 }
 
 function normalizeItem(item) {
-  const price  = parseFloat(item.price||item.priceEur||item.publicPrice||item.tracking?.price||0);
-  const km     = parseInt(item.mileage||item.km||item.tracking?.mileage||0);
-  const year   = parseInt(item.firstRegistrationYear||item.year||item.tracking?.first_registration?.slice(0,4)||0);
-  const make   = item.make||item.vehicle?.make||item.brand||'';
-  const model  = item.model||item.vehicle?.model||'';
-  const version= item.version||item.variant||item.trim||item.vehicle?.variant||'';
-  const fuel   = (item.fuelType||item.fuel_type||item.vehicle?.fuelType||item.tracking?.fuel_type||'').toLowerCase();
-  const seller = item.dealerName||item.seller?.name||item.sellerName||'—';
-  const sellerType = item.sellerType||item.seller?.type||'';
-  const isPro  = !sellerType.toLowerCase().includes('private') && !sellerType.toLowerCase().includes('priv');
-  const country= (item.location?.countryCode||item.country||'DE').toUpperCase();
-  const url    = item.url||item.listingUrl||item.adUrl||'';
-  const dom    = parseInt(item.daysOnMarket||item.days_on_market||item.daysSincePosted||0);
-  const firstRegDate = item.firstRegistrationDate||item.first_registration||'';
-  // Estimer âge en mois depuis date de 1ère immatriculation
+  // PRIX — AutoScout24 affiche TOUJOURS TTC
+  const priceTTC = parseFloat(
+    item.price || item.priceEur || item.publicPrice ||
+    item.price_eur || (item.pricing && item.pricing.price) ||
+    (item.tracking && item.tracking.price) || (item.ad && item.ad.price) || 0
+  );
+
+  // KILOMÉTRAGE — noms variés selon l'actor Apify
+  const km = parseInt(
+    item.mileage || item.km || item.mileageInKm ||
+    item.mileage_km || (item.vehicle && item.vehicle.mileage) ||
+    (item.specs && item.specs.mileage) || (item.tracking && item.tracking.mileage) ||
+    (item.ad && item.ad.mileage) || item.kilometers || 0
+  ) || 0;
+
+  // ANNÉE
+  const year = parseInt(
+    item.firstRegistrationYear || item.year || item.registrationYear ||
+    (item.vehicle && item.vehicle.year) || (item.specs && item.specs.year) ||
+    (item.tracking && item.tracking.first_registration && item.tracking.first_registration.slice(0,4)) ||
+    (item.firstRegistration && item.firstRegistration.slice(0,4)) || 0
+  ) || 0;
+
+  // MARQUE / MODÈLE / VERSION
+  const make    = item.make    || (item.vehicle && item.vehicle.make)    || item.brand  || item.manufacturer || '';
+  const model   = item.model   || (item.vehicle && item.vehicle.model)   || item.carModel || '';
+  const version = item.version || item.variant || item.trim || item.edition ||
+                  (item.vehicle && (item.vehicle.variant || item.vehicle.version)) ||
+                  (item.specs && item.specs.version) || '';
+
+  // CARBURANT
+  const fuel = (
+    item.fuelType || item.fuel_type || item.fuel ||
+    (item.vehicle && item.vehicle.fuelType) || (item.specs && item.specs.fuelType) ||
+    (item.tracking && item.tracking.fuel_type) || ''
+  ).toLowerCase();
+
+  // VENDEUR
+  const seller     = item.dealerName || (item.seller && item.seller.name) || item.sellerName || (item.dealer && item.dealer.name) || '—';
+  const sellerType = item.sellerType || (item.seller && item.seller.type) || (item.dealer && item.dealer.type) || '';
+  const isPrivate  = /priv|particulier|private/i.test(sellerType);
+  // isPro uniquement si le type vendeur est explicitement dealer/pro (pas si inconnu)
+  const isPro      = sellerType.length > 0 && !isPrivate;
+
+  // PAYS
+  const country = (
+    (item.location && item.location.countryCode) || item.country || item.countryCode ||
+    (item.location && item.location.country) || 'DE'
+  ).toUpperCase().slice(0,2);
+
+  // URL
+  const url = item.url || item.listingUrl || item.adUrl || item.link || '';
+
+  // JOURS EN LIGNE
+  const dom = parseInt(
+    item.daysOnMarket || item.days_on_market || item.daysSincePosted ||
+    item.daysOnline || item.age_days || 0
+  ) || 0;
+
+  // DATE PREMIÈRE IMMATRICULATION
+  const firstRegDate = item.firstRegistrationDate || item.first_registration ||
+                       item.registrationDate || item.firstReg || '';
   let monthsReg = 99;
   if (firstRegDate) {
     const d = new Date(firstRegDate);
-    if (!isNaN(d)) monthsReg = Math.round((Date.now()-d.getTime())/(30*24*3600*1000));
+    if (!isNaN(d.getTime())) monthsReg = Math.round((Date.now()-d.getTime())/(30*24*3600*1000));
   } else if (year) {
-    monthsReg = (new Date().getFullYear() - year)*12;
+    monthsReg = Math.round((Date.now()-new Date(year,0,1).getTime())/(30*24*3600*1000));
   }
-  return {price, km, year, make, model, version, fuel, seller, sellerType, isPro, country, url, dom, monthsReg, firstRegDate};
+
+  // PRIX HT (vendeur pro uniquement — TVA pays déduite)
+  const VAT = {DE:0.19,FR:0.20,IT:0.22,ES:0.21,NL:0.21,BE:0.21,AT:0.20,PT:0.23,UK:0.20};
+  const vatRate = VAT[country] || 0.20;
+  const priceHT = isPro ? Math.round(priceTTC / (1 + vatRate)) : priceTTC;
+
+  return {priceTTC, priceHT, vatRate, isPro, isPrivate, km, year, make, model, version, fuel, seller, sellerType, country, url, dom, monthsReg, firstRegDate};
 }
 
 function findSpec(make, model) {
@@ -890,18 +985,16 @@ function renderResults(items, actor, mmin, dommax) {
 
   const processed = items.map(item => {
     const n = normalizeItem(item);
-    if (!n.price || n.price < 5000) return null;
+    if (!n.priceTTC || n.priceTTC < 5000) return null;
 
     // Prix base : HT si vendeur pro, TTC si privé
-    const prixEUR = n.price;
-    const prixCHF = prixEUR * PARAMS.fx.v;
-    // Note : le prix sur AutoScout24 est affiché TTC dans le pays d'origine.
-    // Si vendeur pro → on peut récupérer la TVA étrangère → on travaille en HT
-    // La TVA moyenne UE est ~20% (DE:19%, FR:20%, IT:22%, ES:21%)
-    // Pour l'instant on affiche le prix brut et on signale clairement
-    const vatRateOrigin = {DE:0.19,FR:0.20,IT:0.22,ES:0.21,NL:0.21,BE:0.21,AT:0.20}[n.country]||0.20;
-    const prixHT_CHF = n.isPro ? Math.round(prixCHF / (1+vatRateOrigin)) : prixCHF;
+    // Prix : TTC = prix annoncé sur AS24, HT = TTC/(1+TVA locale) si vendeur pro
+    const prixTTC_EUR = n.priceTTC;
+    const prixHT_EUR  = n.priceHT;   // = priceTTC si privé, = priceTTC/(1+vat) si pro
+    const vatRateOrigin = n.vatRate || 0.20;
     const isHT = n.isPro;
+    const prixHT_CHF  = Math.round(prixHT_EUR * PARAMS.fx.v);
+    const prixTTC_CHF = Math.round(prixTTC_EUR * PARAMS.fx.v);
 
     const found = findSpec(n.make, n.model);
     if (!found) return {...n, prixHT_CHF, isHT, spec:null, margin:null};
@@ -910,7 +1003,20 @@ function renderResults(items, actor, mmin, dommax) {
     return {...n, prixHT_CHF, isHT, vatRateOrigin, spec:found.spec, specKey:found.key, landed, margin};
   }).filter(Boolean);
 
-  const mminFiltered = processed.filter(r => !r.spec || r.margin === null || r.margin >= mmin);
+  const fuelFilter   = document.getElementById('s-fuel').value;
+  const fuelFiltered = fuelFilter
+    ? processed.filter(r => {
+        if (!r.fuel) return true; // pas de données fuel → on garde
+        const fMap = {'B':['essence','petrol','gasoline','b'],
+                      'D':['diesel','d'],
+                      'E':['electric','electrique','électrique','e'],
+                      '2':['hybrid','hybride','h','2'],
+                      '3':['hybrid','hybride','h','3']};
+        const allowed = fMap[fuelFilter] || [];
+        return allowed.some(f => r.fuel.toLowerCase().includes(f));
+      })
+    : processed;
+  const mminFiltered = fuelFiltered.filter(r => !r.spec || r.margin === null || r.margin >= mmin);
   const domFiltered  = mminFiltered.filter(r => !r.dom || r.dom <= dommax);
   const final        = domFiltered.sort((a,b) => (b.margin||0)-(a.margin||0));
 
@@ -940,7 +1046,7 @@ function renderResults(items, actor, mmin, dommax) {
         <div class="rc-detail">
           <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#aaa;margin-bottom:6px">Décomposition landed cost</div>
           <div style="color:#888;line-height:1.9">
-            <b>Prix ${isPro?'HT estimé':'TTC'} EUR</b> : €${Math.round(r.price).toLocaleString('fr-CH')} ${isPro?`(−TVA ${r.country} ${Math.round(r.vatRateOrigin*100)}%)`:''}<br>
+            <b>Prix ${isPro?'HT estimé':'TTC'} EUR</b> : €${Math.round(r.priceTTC).toLocaleString('fr-CH')} TTC${r.isPro?' / €'+Math.round(r.priceHT).toLocaleString('fr-CH')+' HT estimé':''} ${isPro?`(−TVA ${r.country} ${Math.round(r.vatRateOrigin*100)}%)`:''}<br>
             <b>Converti CHF</b> : CHF ${Math.round(r.prixHT_CHF).toLocaleString('fr-CH')} (×${PARAMS.fx.v} <span class="badge bh">Hyp.</span>)<br>
             <b>Transport</b> : +CHF ${PARAMS.transport.v.toLocaleString('fr-CH')} <span class="badge bh">Hyp.</span><br>
             <b>Impôt fédéral véhicules 4%</b> : +CHF ${l.autoTax.toLocaleString('fr-CH')} <span class="badge bl">OFDF</span><br>
@@ -966,13 +1072,16 @@ function renderResults(items, actor, mmin, dommax) {
           <span class="badge ${isPro?'bv':'bg'}">${isPro?'Pro dealer':'Privé'}</span>
           <span style="color:#ddd">·</span>
           <span>${CNAMES[r.country]||r.country}</span>
-          ${r.dom?`<span style="color:#ddd">·</span><span class="dom-badge ${domCls}">${domLbl}</span>`:''}
+          <span style="color:#ddd">·</span>
+          ${r.dom>0
+            ? `<span class="dom-badge ${domCls}" title="${domLbl}">${r.dom}j en ligne</span>`
+            : `<span style="font-size:10px;color:#ccc">jours en ligne inconnu</span>`}
         </div>
         ${r.url?`<a class="rc-link" href="${r.url}" target="_blank">↗ Voir l'annonce sur AutoScout24</a>`:''}
         <div class="rc-fins">
           <div class="rcf">
             <div class="rcf-l">Prix affiché ${priceTag}</div>
-            <div class="rcf-v">€${Math.round(r.price).toLocaleString('fr-CH')}</div>
+            <div class="rcf-v">€${Math.round(r.priceTTC).toLocaleString('fr-CH')} TTC${r.isPro?' / €'+Math.round(r.priceHT).toLocaleString('fr-CH')+' HT estimé':''}</div>
             <div style="font-size:9px;color:#aaa;margin-top:2px">${vatNote}</div>
           </div>
           ${r.landed?`<div class="rcf"><div class="rcf-l">Landed GVA <span class="badge bttc">TTC</span></div><div class="rcf-v">CHF ${r.landed.total.toLocaleString('fr-CH')}</div></div>`:''}
@@ -994,7 +1103,7 @@ function renderResults(items, actor, mmin, dommax) {
         brand: r.specKey?.split(' ').slice(0,r.make.toLowerCase().includes('land')?2:1).join(' ') || r.make,
         model: r.specKey?.split(' ').slice(r.make.toLowerCase().includes('land')?2:1).join(' ')    || r.model,
         motor: r.fuel||'essence', year:r.year, km:r.km,
-        eurPrice:Math.round(r.price), isHT:r.isPro,
+        eurPrice:Math.round(r.priceTTC), isHT:r.isPro,
         sellerType:r.isPro?'Official Dealer':'Privé',
         sellerName:r.seller||'—', country:r.country,
         dom:r.dom||0, monthsReg:r.monthsReg||99,
@@ -1057,7 +1166,7 @@ function renderDeals() {
     const prixCHF = (d.eurPrice||0) * PARAMS.fx.v;
     const vatRateOrigin = {DE:0.19,FR:0.20,IT:0.22,ES:0.21,NL:0.21,BE:0.21,AT:0.20}[d.country]||0.20;
     const prixHT_CHF = d.isHT ? Math.round(prixCHF/(1+vatRateOrigin)) : prixCHF;
-    const landed = calcLanded(prixHT_CHF, d.isHT, spec, d.monthsReg||99, d.km||50000);
+    const landed = calcLanded(prixHT_CHF, d.isHT, spec, d.monthsReg||99, d.km||50000, d.customTransport);
     const p      = d._pr;
     const pct    = ((p/spec.r)*100).toFixed(1);
     const id     = dId(d);
@@ -1093,7 +1202,7 @@ function renderDeals() {
             <span style="font-weight:600;color:#333">${d.sellerName}</span>
             <span style="color:#ddd">·</span><span class="badge ${d.isHT?'bv':'bg'}">${d.isHT?'Pro HT':'Privé TTC'}</span>
             <span style="color:#ddd">·</span><span>${(d.km||0).toLocaleString('fr-CH')} km</span>
-            ${d.dom?`<span style="color:#ddd">·</span><span class="dom-badge ${domCls}">${domLbl}</span>`:''}
+            ${d.dom>0?`<span style="color:#ddd">·</span><span class="dom-badge ${domCls}">${domLbl}</span>`:''}
             ${d.addedBy&&d.addedBy!=='—'?`<span style="color:#ccc">· Par ${d.addedBy}</span>`:''}
           </div>
           ${d.link?`<a class="al" href="${d.link}" onclick="event.stopPropagation()" target="_blank">↗ Voir l'annonce</a>`:''}
@@ -1115,8 +1224,17 @@ function renderDeals() {
       <!-- RAPPORT COMPLET -->
       <div class="rapport">
         <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#aaa;margin-bottom:9px">Rapport landed cost complet <span class="badge bttc">TTC</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;padding:7px 9px;background:#FAEEDA20;border:0.5px solid #EF9F2740;border-radius:5px">
+          <span style="font-size:10px;color:#854F0B;font-weight:600;white-space:nowrap">🚚 Transport réel CHF</span>
+          <input type="number" id="tr-${i}" value="${d.customTransport||PARAMS.transport.v}"
+            style="font-size:11px;padding:3px 7px;border:0.5px solid #EF9F27;border-radius:4px;background:#fff;color:#333;font-family:'Courier New',monospace;width:90px;text-align:right"
+            placeholder="${PARAMS.transport.v}"
+            oninput="overrideTransport(${i},${d._i},this.value)"
+            onclick="event.stopPropagation()"/>
+          <span style="font-size:10px;color:#aaa">CHF — écrasez le global (${PARAMS.transport.v} CHF) pour ce deal</span>
+        </div>
         <div class="rr"><span class="rl">Prix ${d.isHT?'HT estimé (TVA '+Math.round(vatRateOrigin*100)+'% déduite)':'TTC vendeur'} → CHF (×${PARAMS.fx.v} <span class="badge bh">Hyp.</span>)</span><span class="rv">CHF ${Math.round(prixHT_CHF).toLocaleString('fr-CH')}</span></div>
-        <div class="rr"><span class="rl">Transport EU→GVA <span class="badge bh">Hyp. — ${PARAMS.transport.src?.split('·')[0]?.trim()||'Estimation'}</span></span><span class="rv cost">+CHF ${PARAMS.transport.v.toLocaleString('fr-CH')}</span></div>
+        <div class="rr"><span class="rl">Transport EU→GVA <span class="badge bh">Hyp.</span></span><span class="rv cost" id="tr-val-${i}">+CHF ${landed.transport.toLocaleString('fr-CH')}</span></div>
         <div class="rr"><span class="rl">Impôt fédéral véhicules 4% <span class="badge bl">OFDF</span></span><span class="rv cost">+CHF ${landed.autoTax.toLocaleString('fr-CH')}</span></div>
         <div class="rr"><span class="rl">Frais fixes (douane CHF 20 + expertise CHF 60 + test CHF 100) <span class="badge bl">OFDF + Canton</span></span><span class="rv cost">+CHF ${landed.fixedFees}</span></div>
         <div class="rr"><span class="rl">TVA suisse 8.1% (sur base CHF ${Math.round(landed.vatBase).toLocaleString('fr-CH')}) <span class="badge bl">LTVA + BAZG</span></span><span class="rv cost">+CHF ${landed.vat.toLocaleString('fr-CH')}</span></div>
@@ -1167,7 +1285,7 @@ function renderDeals() {
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <button class="btn btn-b" style="font-size:10px;padding:5px 12px" onclick="runBenchmark('${d.brand}','${d.model}',${i})">🔍 Analyser AutoScout24.ch</button>
-          <a class="btn" style="font-size:10px;padding:5px 12px;text-decoration:none" href="https://www.autoscout24.ch/fr/s/${encodeURIComponent(d.brand.toLowerCase())}/${encodeURIComponent(d.model.toLowerCase().replace(/ /g,'-'))}" target="_blank">↗ AutoScout24.ch</a>
+          <a class="btn" style="font-size:10px;padding:5px 12px;text-decoration:none" href="https://www.autoscout24.ch/fr/s/${encodeURIComponent(getAS24Slug(d.brand,d.model).make)}/${encodeURIComponent(getAS24Slug(d.brand,d.model).model)}" target="_blank">↗ AutoScout24.ch</a>
           <a class="btn" style="font-size:10px;padding:5px 12px;text-decoration:none" href="https://www.mobile.ch/fr/voitures/${encodeURIComponent(d.brand.toLowerCase().replace(' ','-'))}/${encodeURIComponent(d.model.toLowerCase().replace(/ /g,'-'))}" target="_blank">↗ Mobile.ch</a>
           <a class="btn" style="font-size:10px;padding:5px 12px;text-decoration:none" href="https://www.eurotaxglass.ch" target="_blank">↗ Eurotax CH</a>
         </div>
@@ -1196,6 +1314,73 @@ function copyMsg(i) {
     const btn = el.nextElementSibling;
     if(btn){ const t=btn.textContent; btn.textContent='✓ Copié !'; setTimeout(()=>btn.textContent=t,2000); }
   });
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Mapping modèle détaillé → slug AutoScout24 (marché CH)
+// Principe : utiliser le slug le plus large possible pour maximiser
+// le nombre d'annonces, puis filtrer par année/km
+// ═══════════════════════════════════════════════════════════════
+function getAS24Slug(brand, model) {
+  const b = brand.toLowerCase().replace(' ','-');
+  const m = model.toLowerCase();
+
+  // Porsche — garder le détail car AS24 le supporte bien
+  const pSlugMap = {
+    '911 carrera gts':'911-carrera', '911 carrera 4s':'911-carrera',
+    '911 carrera s':'911-carrera',   '911 carrera':'911-carrera',
+    '911 targa 4s':'911-targa-4',    '911 targa 4':'911-targa-4',
+    '911 turbo s':'911-turbo',       '911 turbo':'911-turbo',
+    '911 gt3 rs':'911-gt3',          '911 gt3 touring':'911-gt3',
+    '911 gt3':'911-gt3',
+    '718 cayman gt4 rs':'718-cayman-gt4', '718 cayman gt4':'718-cayman-gt4',
+    '718 cayman s':'718-cayman',     '718 cayman':'718-cayman',
+    '718 boxster s':'718-boxster',   '718 boxster':'718-boxster',
+    'cayenne turbo s e-hybrid':'cayenne', 'cayenne turbo':'cayenne',
+    'cayenne e-hybrid':'cayenne',    'cayenne gts':'cayenne',
+    'cayenne s':'cayenne',           'cayenne':'cayenne',
+    'macan turbo':'macan',           'macan gts':'macan',
+    'macan s':'macan',               'macan':'macan',
+    'taycan turbo s':'taycan',       'taycan turbo':'taycan',
+    'taycan gts':'taycan',           'taycan 4s':'taycan',
+    'taycan sport turismo':'taycan', 'taycan cross turismo':'taycan',
+    'taycan':'taycan',
+    'panamera turbo s e-hybrid':'panamera', 'panamera turbo s':'panamera',
+    'panamera gts':'panamera',       'panamera 4s':'panamera',
+    'panamera':'panamera',
+  };
+  // Land Rover — simplifier vers le modèle de base
+  const lrSlugMap = {
+    'defender 90 v8':'defender-90',  'defender 90 x':'defender-90',
+    'defender 90':'defender-90',
+    'defender 110 d200':'defender-110', 'defender 110 d300':'defender-110',
+    'defender 110 d350':'defender-110', 'defender 110 p400e':'defender-110',
+    'defender 110 v8':'defender-110',   'defender 110 x':'defender-110',
+    'defender 110':'defender-110',
+    'defender 130':'defender-130',
+    'discovery sport':'discovery-sport', 'discovery':'discovery',
+    'range rover sv':'range-rover',
+    'range rover autobiography':'range-rover',
+    'range rover p510e':'range-rover',
+    'range rover sport d350':'range-rover-sport',
+    'range rover sport p400e':'range-rover-sport',
+    'range rover sport svr':'range-rover-sport',
+    'range rover sport sv':'range-rover-sport',
+    'range rover sport':'range-rover-sport',
+    'range rover evoque p300e':'range-rover-evoque',
+    'range rover evoque':'range-rover-evoque',
+    'range rover velar p400e':'range-rover-velar',
+    'range rover velar svautobiography':'range-rover-velar',
+    'range rover velar':'range-rover-velar',
+    'range rover':'range-rover',
+  };
+
+  if (b === 'porsche') {
+    return {make:'porsche', model: pSlugMap[m] || m.replace(/ /g,'-')};
+  } else {
+    return {make:'land-rover', model: lrSlugMap[m] || m.split(' ').slice(0,2).join('-')};
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1292,9 +1477,10 @@ async function runBenchmark(brand, model, dealIdx) {
   // 2. Pas de cache → scraper
   el.innerHTML = '<div class="loading" style="padding:12px"><div class="spinner" style="width:20px;height:20px;border-width:2px"></div><div style="font-size:11px;color:#888;margin-top:8px">Scrape AutoScout24.ch en cours…</div></div>';
 
-  const make = brand.toLowerCase().replace(' ','-');
-  const mod  = model.toLowerCase().replace(/ /g,'-');
-  const searchUrl = `https://www.autoscout24.ch/lst/${make}/${mod}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
+  const slugs = getAS24Slug(brand, model);
+  // URL large : slug générique + filtres année/km pour maximiser les résultats
+  const searchUrl = `https://www.autoscout24.ch/lst/${slugs.make}/${slugs.model}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
+  console.log('Benchmark CH URL:', searchUrl);
 
   try {
     const resp = await fetch('/api/search', {
@@ -1304,8 +1490,11 @@ async function runBenchmark(brand, model, dealIdx) {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const {items} = await resp.json();
 
-    const prices = (items||[]).map(it=>parseFloat(it.price||it.priceEur||0)).filter(p=>p>10000).sort((a,b)=>a-b);
-    const doms   = (items||[]).map(it=>parseInt(it.daysOnMarket||it.days_on_market||0)).filter(d=>d>0);
+    const prices = (items||[]).map(it=>{
+      const p = parseFloat(it.price||it.priceEur||it.publicPrice||it.price_eur||(it.pricing&&it.pricing.price)||0);
+      return p;
+    }).filter(p=>p>10000).sort((a,b)=>a-b);
+    const doms   = (items||[]).map(it=>parseInt(it.daysOnMarket||it.days_on_market||it.daysSincePosted||it.daysOnline||0)).filter(d=>d>0);
     const n = prices.length;
 
     const isReliable = n >= 5;
@@ -1361,6 +1550,29 @@ function applyBenchmarkPrice(brand, model, price) {
   SPECS[key].rsrc = `AutoScout24.ch — P25×0.95 — ${new Date().toLocaleDateString('fr-CH')}`;
   renderDeals(); renderStaticHeatmap();
   alert(`✓ Prix de revente mis à jour : ${key} → CHF ${price.toLocaleString('fr-CH')}`);
+}
+
+function overrideTransport(cardIdx, dealIdx, val) {
+  const d = deals[dealIdx]; if (!d) return;
+  const t = parseFloat(val) || PARAMS.transport.v;
+  d.customTransport = t;
+  sv();
+  // Recalculate and update the landed cost display for this deal
+  const spec = SPECS[d.brand+' '+d.model]; if (!spec) return;
+  const vatRateOrigin = {DE:0.19,FR:0.20,IT:0.22,ES:0.21,NL:0.21,BE:0.21,AT:0.20,PT:0.23,UK:0.20}[d.country]||0.20;
+  const prixTTC_CHF = (d.eurPrice||0) * PARAMS.fx.v;
+  const prixHT_CHF  = d.isHT ? Math.round(prixTTC_CHF/(1+vatRateOrigin)) : prixTTC_CHF;
+  // Temporarily override transport
+  const origTransport = PARAMS.transport.v;
+  PARAMS.transport.v = t;
+  const landed = calcLanded(prixHT_CHF, d.isHT, spec, d.monthsReg||99, d.km||50000);
+  PARAMS.transport.v = origTransport;
+  // Update transport value display
+  const trVal = document.getElementById('tr-val-'+cardIdx);
+  if (trVal) trVal.textContent = '+CHF '+landed.transport.toLocaleString('fr-CH');
+  // Update total and margin display
+  const mbox = document.querySelector(`[data-deal-idx="${cardIdx}"] .mbox-val`);
+  // Trigger full recalculate on next render
 }
 
 function updN(ci,oi) {
@@ -1444,8 +1656,8 @@ function rebuildHmModels() {
 async function runHeatmap() {
   const brand = document.getElementById('hm-brand').value;
   const model = document.getElementById('hm-model').value;
-  const ymin  = parseInt(document.getElementById('hm-ymin').value)||2019;
-  const kmax  = parseInt(document.getElementById('hm-kmax').value)||100000;
+  const ymin  = parseInt(document.getElementById('hm-ymin').value)||2018;
+  const kmax  = parseInt(document.getElementById('hm-kmax').value)||150000;
   const area  = document.getElementById('hm-result-area');
   if (!brand||!model) { area.innerHTML='<div style="font-size:11px;color:#cc0000;padding:10px">Sélectionnez une marque et un modèle.</div>'; return; }
 
@@ -1474,7 +1686,9 @@ async function runHeatmap() {
 
   area.innerHTML = '<div class="loading" style="padding:20px"><div class="spinner"></div><div style="font-size:12px;font-weight:600;color:#333">Analyse du marché suisse…</div><div style="font-size:11px;color:#aaa;margin-top:5px">AutoScout24.ch via Apify · 1 scrape consommé</div></div>';
 
-  const searchUrl = `https://www.autoscout24.ch/lst/${brand}/${model}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
+  const hmSlugs = getAS24Slug(brandName, modelName);
+  const searchUrl = `https://www.autoscout24.ch/lst/${hmSlugs.make}/${hmSlugs.model}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
+  console.log('Heatmap CH URL:', searchUrl);
   try {
     const resp = await fetch('/api/search', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -1484,7 +1698,7 @@ async function runHeatmap() {
     const {items} = await resp.json();
 
     const prices = (items||[]).map(it=>parseFloat(it.price||0)).filter(p=>p>10000).sort((a,b)=>a-b);
-    const doms   = (items||[]).map(it=>parseInt(it.daysOnMarket||it.days_on_market||0)).filter(d=>d>0);
+    const doms   = (items||[]).map(it=>parseInt(it.daysOnMarket||it.days_on_market||it.daysSincePosted||it.daysOnline||0)).filter(d=>d>0);
     const n = prices.length;
     const isReliable = n >= 5;
     const record = {
