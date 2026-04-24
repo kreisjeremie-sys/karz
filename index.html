@@ -231,6 +231,7 @@ body{background:#f5f5f5;color:#111;font-size:13px;font-family:-apple-system,Blin
   <button class="nb" onclick="showPage('deals',this)">DEALS <span class="pill" id="deal-cnt">0</span></button>
   <button class="nb" onclick="showPage('pipeline',this)">PIPELINE <span class="pill" id="fav-cnt">0</span></button>
   <button class="nb" onclick="showPage('heatmap',this)">HEATMAP CH</button>
+  <button class="nb" onclick="showPage('marche',this)">MARCHÉ CH</button>
   <button class="nb" onclick="showPage('admin',this)">ADMIN</button>
 </div>
 
@@ -371,6 +372,50 @@ body{background:#f5f5f5;color:#111;font-size:13px;font-family:-apple-system,Blin
       <span style="color:#854F0B">8–15k CHF</span><span>→</span>
       <span style="color:#0F6E56">&gt;15k CHF marge</span>
     </div>
+  </div>
+</div>
+
+<!-- PAGE MARCHÉ CH -->
+<div id="page-marche" class="page">
+  <div class="sh"><span class="sh-t">Marché Suisse — Base de données annonces AutoScout24.ch</span></div>
+  <div style="font-size:11px;color:#888;margin-bottom:14px;line-height:1.6;padding:10px 12px;background:#f9f9f9;border-radius:6px;border:0.5px solid #eee">
+    <b>Principe :</b> Un scrape global ramène toutes les Porsche et Land Rover disponibles en Suisse. 
+    Les résultats sont stockés dans Supabase et servent de référence pour les estimations de revente dans KARZ.<br>
+    Le scrape ne se relance que manuellement. La base se met à jour sans consommer de crédits Apify supplémentaires.
+  </div>
+
+  <!-- STATUT BASE -->
+  <div class="admin-s" id="marche-status">
+    <div class="at">Statut de la base</div>
+    <div id="marche-stats-area"><div style="font-size:11px;color:#aaa">Chargement…</div></div>
+  </div>
+
+  <!-- LANCEMENT SCRAPE -->
+  <div class="admin-s">
+    <div class="at">Lancer un scrape global</div>
+    <div style="font-size:11px;color:#888;margin-bottom:12px;line-height:1.5">
+      Scrape <b>toutes les Porsche + Land Rover d'occasion en Suisse</b> sur AutoScout24 (cy=CH).<br>
+      Durée estimée : 2–4 minutes · Crédits Apify : ~2–4 runs · Recommandé : 1×/mois
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <div class="fg"><label>Année min</label><input type="number" id="mch-ymin" value="2018" style="width:90px"/></div>
+      <div class="fg"><label>Km max</label><input type="number" id="mch-kmax" value="150000" style="width:90px"/></div>
+      <div class="fg"><label>Max annonces / marque</label><input type="number" id="mch-max" value="50" min="10" max="100" style="width:90px"/></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-g" onclick="runGlobalScrape()" id="btn-global-scrape">🔍 Lancer le scrape global CH</button>
+      <button class="btn" onclick="loadMarcheStats()">↺ Actualiser les stats</button>
+    </div>
+    <div id="scrape-progress" style="margin-top:10px"></div>
+  </div>
+
+  <!-- RÉSULTATS PAR MODÈLE -->
+  <div class="admin-s">
+    <div class="at">Estimations de revente par modèle (depuis la base)</div>
+    <div style="overflow-x:auto"><table class="tbl" id="marche-table">
+      <thead><tr><th>Modèle</th><th>N annonces</th><th>P25</th><th>Médiane</th><th>P75</th><th>Prix retenu (P25×0.95)</th><th>Moy. jours en ligne</th><th>Dernière mise à jour</th></tr></thead>
+      <tbody id="marche-tbody"></tbody>
+    </table></div>
   </div>
 </div>
 
@@ -677,7 +722,38 @@ try {
   document.getElementById('sb-st').textContent = '● Supabase OK';
   document.getElementById('sb-st').className = 'tbadge tb-ok';
   loadSB();
+  loadBmCache(); // Charger les prix de revente réels depuis les scraps précédents
 } catch(e) { console.warn('Supabase init:', e); }
+
+// Cache en mémoire des benchmarks CH (prix revente réels)
+let bmCache = {}; // key: "Brand Model" → {price_conservative, rsrc, scraped_at}
+
+async function loadBmCache() {
+  if (!sbClient) return;
+  try {
+    const {data} = await sbClient.from('benchmark_ch').select('brand,model,price_conservative,scraped_at,n_listings,is_reliable')
+      .gte('scraped_at', new Date(Date.now()-30*24*3600*1000).toISOString()) // 30 jours
+      .eq('is_reliable', true)
+      .order('scraped_at',{ascending:false});
+    if (data) {
+      data.forEach(row => {
+        const key = row.brand+' '+row.model;
+        if (!bmCache[key] && row.price_conservative) { // garder le plus récent
+          bmCache[key] = {
+            price_conservative: row.price_conservative,
+            rsrc: `AutoScout24.ch — ${row.n_listings} ann., P25×0.95, ${new Date(row.scraped_at).toLocaleDateString('fr-CH')}`,
+          };
+          // Mettre à jour SPECS aussi pour cohérence
+          if (SPECS[key]) {
+            SPECS[key].r = row.price_conservative;
+            SPECS[key].rsrc = bmCache[key].rsrc;
+          }
+        }
+      });
+      console.log(`Cache benchmark CH chargé: ${Object.keys(bmCache).length} modèles`);
+    }
+  } catch(e) { console.warn('loadBmCache:', e); }
+}
 
 async function loadSB() {
   try {
@@ -866,83 +942,124 @@ async function runSearch() {
   }
 }
 
+function _pick(...vals) {
+  // Retourne la première valeur truthy non-zéro parmi les candidats
+  for (const v of vals) {
+    const n = parseFloat(v);
+    if (!isNaN(n) && n > 0) return n;
+  }
+  return 0;
+}
+function _str(...vals) {
+  for (const v of vals) { if (v && String(v).trim()) return String(v).trim(); }
+  return '';
+}
+
 function normalizeItem(item) {
-  // PRIX — AutoScout24 affiche TOUJOURS TTC
-  const priceTTC = parseFloat(
-    item.price || item.priceEur || item.publicPrice ||
-    item.price_eur || (item.pricing && item.pricing.price) ||
-    (item.tracking && item.tracking.price) || (item.ad && item.ad.price) || 0
+  // ── PRIX TTC ────────────────────────────────────────────────
+  // AutoScout24 affiche toujours le prix TTC dans le pays
+  const priceTTC = _pick(
+    item.price, item.priceEur, item.publicPrice,
+    item.price_eur,
+    item.pricing?.price,
+    item.tracking?.price,
+    item.ad?.price,
+    item.vehicle_details?.price
   );
 
-  // KILOMÉTRAGE — noms variés selon l'actor Apify
-  const km = parseInt(
-    item.mileage || item.km || item.mileageInKm ||
-    item.mileage_km || (item.vehicle && item.vehicle.mileage) ||
-    (item.specs && item.specs.mileage) || (item.tracking && item.tracking.mileage) ||
-    (item.ad && item.ad.mileage) || item.kilometers || 0
-  ) || 0;
+  // ── KILOMÉTRAGE ─────────────────────────────────────────────
+  // Source primaire : tracking.mileage (string dans le JSON AS24 brut)
+  const km = Math.round(_pick(
+    item.tracking?.mileage,   // ← source la plus fiable AS24 JSON
+    item.mileage,
+    item.km,
+    item.mileageInKm,
+    item.mileage_km,
+    item.vehicle?.mileage,
+    item.specs?.mileage,
+    item.ad?.mileage,
+    item.kilometers,
+    item.vehicle_details?.speedometer && String(item.vehicle_details.speedometer).replace(/[^0-9]/g,'')
+  ));
 
-  // ANNÉE
-  const year = parseInt(
+  // ── ANNÉE ──────────────────────────────────────────────────
+  const firstRegRaw = _str(
+    item.firstRegistrationDate, item.first_registration,
+    item.tracking?.first_registration,
+    item.registrationDate, item.firstReg,
+    item.vehicle_details?.calendar
+  );
+  // Extraire année depuis "10-2017", "2021-03", "2021", "01/2020" etc.
+  const yearFromDate = firstRegRaw.match(/\b(19|20)\d{2}\b/)?.[0];
+  const year = parseInt(yearFromDate ||
     item.firstRegistrationYear || item.year || item.registrationYear ||
-    (item.vehicle && item.vehicle.year) || (item.specs && item.specs.year) ||
-    (item.tracking && item.tracking.first_registration && item.tracking.first_registration.slice(0,4)) ||
-    (item.firstRegistration && item.firstRegistration.slice(0,4)) || 0
+    item.vehicle?.year || item.specs?.year || 0
   ) || 0;
 
-  // MARQUE / MODÈLE / VERSION
-  const make    = item.make    || (item.vehicle && item.vehicle.make)    || item.brand  || item.manufacturer || '';
-  const model   = item.model   || (item.vehicle && item.vehicle.model)   || item.carModel || '';
-  const version = item.version || item.variant || item.trim || item.edition ||
-                  (item.vehicle && (item.vehicle.variant || item.vehicle.version)) ||
-                  (item.specs && item.specs.version) || '';
+  // ── MARQUE / MODÈLE / VERSION ────────────────────────────────
+  const make    = _str(item.make, item.vehicle?.make, item.brand, item.manufacturer);
+  const model   = _str(item.model, item.vehicle?.model, item.carModel);
+  const version = _str(
+    item.version, item.variant, item.trim, item.edition,
+    item.vehicle?.variant, item.vehicle?.version, item.specs?.version,
+    item.vehicle?.subtitle, item.subtitle
+  );
 
-  // CARBURANT
-  const fuel = (
-    item.fuelType || item.fuel_type || item.fuel ||
-    (item.vehicle && item.vehicle.fuelType) || (item.specs && item.specs.fuelType) ||
-    (item.tracking && item.tracking.fuel_type) || ''
+  // ── CARBURANT ────────────────────────────────────────────────
+  const fuel = _str(
+    item.fuelType, item.fuel_type, item.fuel,
+    item.vehicle?.fuelType, item.specs?.fuelType,
+    item.tracking?.fuel_type,
+    item.vehicle_details?.gas_pump
   ).toLowerCase();
 
-  // VENDEUR
-  const seller     = item.dealerName || (item.seller && item.seller.name) || item.sellerName || (item.dealer && item.dealer.name) || '—';
-  const sellerType = item.sellerType || (item.seller && item.seller.type) || (item.dealer && item.dealer.type) || '';
+  // ── VENDEUR ──────────────────────────────────────────────────
+  const seller     = _str(item.dealerName, item.seller?.name, item.sellerName, item.dealer?.name) || '—';
+  const sellerType = _str(item.sellerType, item.seller?.type, item.dealer?.type);
   const isPrivate  = /priv|particulier|private/i.test(sellerType);
-  // isPro uniquement si le type vendeur est explicitement dealer/pro (pas si inconnu)
   const isPro      = sellerType.length > 0 && !isPrivate;
 
-  // PAYS
-  const country = (
-    (item.location && item.location.countryCode) || item.country || item.countryCode ||
-    (item.location && item.location.country) || 'DE'
-  ).toUpperCase().slice(0,2);
+  // ── PAYS ─────────────────────────────────────────────────────
+  const country = _str(
+    item.location?.countryCode, item.country, item.countryCode,
+    item.location?.country
+  ).toUpperCase().slice(0,2) || 'DE';
 
-  // URL
-  const url = item.url || item.listingUrl || item.adUrl || item.link || '';
+  // ── URL ──────────────────────────────────────────────────────
+  const url = _str(item.url, item.listingUrl, item.adUrl, item.link);
 
-  // JOURS EN LIGNE
-  const dom = parseInt(
-    item.daysOnMarket || item.days_on_market || item.daysSincePosted ||
-    item.daysOnline || item.age_days || 0
-  ) || 0;
+  // ── JOURS EN LIGNE ────────────────────────────────────────────
+  const dom = Math.round(_pick(
+    item.daysOnMarket, item.days_on_market,
+    item.daysSincePosted, item.daysOnline, item.age_days
+  ));
 
-  // DATE PREMIÈRE IMMATRICULATION
-  const firstRegDate = item.firstRegistrationDate || item.first_registration ||
-                       item.registrationDate || item.firstReg || '';
+  // ── MOIS D'IMMATRICULATION (pour exemption CO2) ───────────────
   let monthsReg = 99;
-  if (firstRegDate) {
-    const d = new Date(firstRegDate);
+  if (firstRegRaw) {
+    // Construire une date depuis "10-2017" → "2017-10-01"
+    const parts = firstRegRaw.match(/(\d{1,2})[\-\/](\d{4})/) ||
+                  firstRegRaw.match(/(\d{4})[\-\/](\d{1,2})/);
+    let d;
+    if (parts) {
+      // Détecter format MM-YYYY vs YYYY-MM
+      const [, a, b] = parts;
+      d = a.length === 4 ? new Date(parseInt(a), parseInt(b)-1, 1)
+                         : new Date(parseInt(b), parseInt(a)-1, 1);
+    } else {
+      d = new Date(firstRegRaw);
+    }
     if (!isNaN(d.getTime())) monthsReg = Math.round((Date.now()-d.getTime())/(30*24*3600*1000));
   } else if (year) {
     monthsReg = Math.round((Date.now()-new Date(year,0,1).getTime())/(30*24*3600*1000));
   }
 
-  // PRIX HT (vendeur pro uniquement — TVA pays déduite)
+  // ── PRIX HT (pro uniquement) ─────────────────────────────────
   const VAT = {DE:0.19,FR:0.20,IT:0.22,ES:0.21,NL:0.21,BE:0.21,AT:0.20,PT:0.23,UK:0.20};
   const vatRate = VAT[country] || 0.20;
   const priceHT = isPro ? Math.round(priceTTC / (1 + vatRate)) : priceTTC;
 
-  return {priceTTC, priceHT, vatRate, isPro, isPrivate, km, year, make, model, version, fuel, seller, sellerType, country, url, dom, monthsReg, firstRegDate};
+  return {priceTTC, priceHT, vatRate, isPro, isPrivate, km, year, make, model, version, fuel, seller, sellerType, country, url, dom, monthsReg, firstRegDate: firstRegRaw};
 }
 
 function findSpec(make, model) {
@@ -998,15 +1115,23 @@ function renderResults(items, actor, mmin, dommax) {
 
     const found = findSpec(n.make, n.model);
     if (!found) return {...n, prixHT_CHF, isHT, spec:null, margin:null};
-    const landed = calcLanded(prixHT_CHF, isHT, found.spec, n.monthsReg, n.km);
-    const margin = Math.round(found.spec.r - landed.total);
-    return {...n, prixHT_CHF, isHT, vatRateOrigin, spec:found.spec, specKey:found.key, landed, margin};
+    // Prix de revente : DB Supabase (scrap réel) > SPECS (hypothèse initiale)
+    const cachedRevente = bmCache[found.key];
+    const specWithRevente = cachedRevente
+      ? {...found.spec, r: cachedRevente.price_conservative, rsrc: cachedRevente.rsrc}
+      : found.spec;
+    const landed = calcLanded(prixHT_CHF, isHT, specWithRevente, n.monthsReg, n.km);
+    const margin = Math.round(specWithRevente.r - landed.total);
+    return {...n, prixHT_CHF, isHT, vatRateOrigin, spec:specWithRevente, specKey:found.key, landed, margin};
   }).filter(Boolean);
 
   const fuelFilter   = document.getElementById('s-fuel').value;
+  const kmaxVal      = parseInt(document.getElementById('s-kmax').value)||999999;
+  const pmaxVal      = parseInt(document.getElementById('s-pmax').value)||999999;
+
   const fuelFiltered = fuelFilter
     ? processed.filter(r => {
-        if (!r.fuel) return true; // pas de données fuel → on garde
+        if (!r.fuel) return true;
         const fMap = {'B':['essence','petrol','gasoline','b'],
                       'D':['diesel','d'],
                       'E':['electric','electrique','électrique','e'],
@@ -1016,7 +1141,10 @@ function renderResults(items, actor, mmin, dommax) {
         return allowed.some(f => r.fuel.toLowerCase().includes(f));
       })
     : processed;
-  const mminFiltered = fuelFiltered.filter(r => !r.spec || r.margin === null || r.margin >= mmin);
+  // Filtrage client-side km et prix (double sécurité si URL params ignorés par Apify)
+  const kmFiltered   = fuelFiltered.filter(r => !r.km || r.km <= kmaxVal);
+  const priceFiltered= kmFiltered.filter(r => !r.priceTTC || r.priceTTC <= pmaxVal);
+  const mminFiltered = priceFiltered.filter(r => !r.spec || r.margin === null || r.margin >= mmin);
   const domFiltered  = mminFiltered.filter(r => !r.dom || r.dom <= dommax);
   const final        = domFiltered.sort((a,b) => (b.margin||0)-(a.margin||0));
 
@@ -1479,7 +1607,9 @@ async function runBenchmark(brand, model, dealIdx) {
 
   const slugs = getAS24Slug(brand, model);
   // URL large : slug générique + filtres année/km pour maximiser les résultats
-  const searchUrl = `https://www.autoscout24.ch/lst/${slugs.make}/${slugs.model}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
+  // Utiliser autoscout24.com avec cy=CH (plus compatible avec les actors Apify)
+  // autoscout24.ch redirige vers autoscout24.com/ch et peut poser des problèmes de scrape
+  const searchUrl = `https://www.autoscout24.com/lst/${slugs.make}/${slugs.model}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
   console.log('Benchmark CH URL:', searchUrl);
 
   try {
@@ -1687,7 +1817,7 @@ async function runHeatmap() {
   area.innerHTML = '<div class="loading" style="padding:20px"><div class="spinner"></div><div style="font-size:12px;font-weight:600;color:#333">Analyse du marché suisse…</div><div style="font-size:11px;color:#aaa;margin-top:5px">AutoScout24.ch via Apify · 1 scrape consommé</div></div>';
 
   const hmSlugs = getAS24Slug(brandName, modelName);
-  const searchUrl = `https://www.autoscout24.ch/lst/${hmSlugs.make}/${hmSlugs.model}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
+  const searchUrl = `https://www.autoscout24.com/lst/${hmSlugs.make}/${hmSlugs.model}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
   console.log('Heatmap CH URL:', searchUrl);
   try {
     const resp = await fetch('/api/search', {
@@ -1816,6 +1946,190 @@ function renderStaticHeatmap() {
 // ═══════════════════════════════════════════════════════════════
 // ADMIN
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// MARCHÉ CH — Scrape global + base de données
+// ═══════════════════════════════════════════════════════════════
+
+async function loadMarcheStats() {
+  if (!sbClient) return;
+  const area = document.getElementById('marche-stats-area');
+  try {
+    // Compter les annonces par batch
+    const {data: batches} = await sbClient
+      .from('listings_ch')
+      .select('scrape_batch, scraped_at')
+      .order('scraped_at', {ascending: false})
+      .limit(1);
+
+    const {count} = await sbClient
+      .from('listings_ch')
+      .select('*', {count: 'exact', head: true});
+
+    if (!count) {
+      area.innerHTML = '<div style="font-size:11px;color:#aaa">Aucune donnée — lancez un scrape global pour remplir la base.</div>';
+      return;
+    }
+
+    const lastBatch = batches?.[0];
+    area.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">
+        <div class="stat"><div class="stat-l">Annonces CH en base</div><div class="stat-v">${count.toLocaleString('fr-CH')}</div></div>
+        <div class="stat"><div class="stat-l">Dernier scrape</div><div class="stat-v" style="font-size:14px">${lastBatch ? new Date(lastBatch.scraped_at).toLocaleDateString('fr-CH') : '—'}</div></div>
+        <div class="stat"><div class="stat-l">Batch ID</div><div class="stat-v" style="font-size:12px">${lastBatch?.scrape_batch || '—'}</div></div>
+      </div>`;
+    loadMarcheTable();
+  } catch(e) {
+    area.innerHTML = `<div style="font-size:11px;color:#cc0000">Erreur Supabase : ${e.message}</div>`;
+  }
+}
+
+async function loadMarcheTable() {
+  const tbody = document.getElementById('marche-tbody');
+  if (!tbody || !sbClient) return;
+  try {
+    // Utiliser la vue ch_market_stats pour les stats par modèle
+    const {data} = await sbClient
+      .from('ch_market_stats')
+      .select('*')
+      .order('brand').order('model');
+
+    if (!data || !data.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="color:#aaa;padding:12px;text-align:center">Aucune donnée</td></tr>';
+      return;
+    }
+
+    // Garder seulement le batch le plus récent par modèle
+    const latest = {};
+    data.forEach(row => {
+      const key = row.brand+'|'+row.model;
+      if (!latest[key] || row.last_scraped > latest[key].last_scraped) latest[key] = row;
+    });
+
+    tbody.innerHTML = '';
+    Object.values(latest).sort((a,b)=>a.brand.localeCompare(b.brand)||a.model.localeCompare(b.model)).forEach(row => {
+      const isReliable = row.n_listings >= 5;
+      const specKey = row.brand+' '+row.model;
+      // Mettre à jour bmCache et SPECS
+      if (isReliable && row.price_conservative) {
+        const rsrc = `AutoScout24.ch — ${row.n_listings} ann., P25×0.95, ${new Date(row.last_scraped).toLocaleDateString('fr-CH')}`;
+        bmCache[specKey] = {price_conservative: row.price_conservative, rsrc};
+        if (SPECS[specKey]) { SPECS[specKey].r = row.price_conservative; SPECS[specKey].rsrc = rsrc; }
+      }
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="padding:5px 8px;font-size:11px;font-weight:500">${row.brand} ${row.model}</td>
+        <td style="padding:5px 8px;text-align:center">${row.n_listings}${!isReliable?' ⚠':''}
+        <td style="padding:5px 8px;text-align:right">CHF ${(row.price_p25||0).toLocaleString('fr-CH')}</td>
+        <td style="padding:5px 8px;text-align:right">CHF ${(row.price_p50||0).toLocaleString('fr-CH')}</td>
+        <td style="padding:5px 8px;text-align:right">CHF ${(row.price_p75||0).toLocaleString('fr-CH')}</td>
+        <td style="padding:5px 8px;text-align:right;font-weight:700;color:${isReliable?'#0F6E56':'#aaa'}">
+          ${isReliable?`CHF ${(row.price_conservative||0).toLocaleString('fr-CH')}`:'Insuffisant (<5 ann.)'}
+          ${isReliable?`<span class="badge bv" style="font-size:8px">Base</span>`:`<span class="badge bh" style="font-size:8px">Hyp.</span>`}
+        </td>
+        <td style="padding:5px 8px;text-align:center">${row.avg_days_online||'—'}j</td>
+        <td style="padding:5px 8px;font-size:10px;color:#aaa">${new Date(row.last_scraped).toLocaleDateString('fr-CH')}</td>`;
+      tbody.appendChild(tr);
+    });
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="8" style="color:#cc0000;padding:12px">${e.message}</td></tr>`;
+  }
+}
+
+async function runGlobalScrape() {
+  if (!sbClient) { alert('Supabase non connecté'); return; }
+  const btn = document.getElementById('btn-global-scrape');
+  const progress = document.getElementById('scrape-progress');
+  const ymin = document.getElementById('mch-ymin').value || '2018';
+  const kmax = document.getElementById('mch-kmax').value || '150000';
+  const maxItems = parseInt(document.getElementById('mch-max').value) || 50;
+  const batch = new Date().toISOString().slice(0,10);
+
+  btn.disabled = true;
+  btn.textContent = '⟳ Scrape en cours…';
+
+  // Slugs génériques par marque pour maximiser les résultats
+  const searches = [
+    {brand:'Porsche',  make:'porsche',    model:'911',           label:'Porsche 911'},
+    {brand:'Porsche',  make:'porsche',    model:'cayenne',       label:'Porsche Cayenne'},
+    {brand:'Porsche',  make:'porsche',    model:'macan',         label:'Porsche Macan'},
+    {brand:'Porsche',  make:'porsche',    model:'taycan',        label:'Porsche Taycan'},
+    {brand:'Porsche',  make:'porsche',    model:'panamera',      label:'Porsche Panamera'},
+    {brand:'Porsche',  make:'porsche',    model:'718-cayman',    label:'Porsche 718 Cayman'},
+    {brand:'Porsche',  make:'porsche',    model:'718-boxster',   label:'Porsche 718 Boxster'},
+    {brand:'Land Rover',make:'land-rover',model:'defender',      label:'Defender'},
+    {brand:'Land Rover',make:'land-rover',model:'range-rover',   label:'Range Rover'},
+    {brand:'Land Rover',make:'land-rover',model:'range-rover-sport',label:'RR Sport'},
+    {brand:'Land Rover',make:'land-rover',model:'range-rover-evoque',label:'Evoque'},
+    {brand:'Land Rover',make:'land-rover',model:'range-rover-velar',label:'Velar'},
+    {brand:'Land Rover',make:'land-rover',model:'discovery',     label:'Discovery'},
+  ];
+
+  let totalSaved = 0;
+  let errors = 0;
+
+  for (let i = 0; i < searches.length; i++) {
+    const s = searches[i];
+    progress.innerHTML = `<div style="font-size:11px;color:#185FA5;padding:8px 10px;background:#E6F1FB;border-radius:5px">
+      ⟳ ${i+1}/${searches.length} — Scrape ${s.label} (Suisse)…</div>`;
+
+    const url = `https://www.autoscout24.com/lst/${s.make}/${s.model}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
+
+    try {
+      const resp = await fetch('/api/search', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({searchUrl: url, maxItems, mode: 'benchmark'})
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const {items} = await resp.json();
+      if (!items || !items.length) continue;
+
+      // Normaliser et insérer dans Supabase
+      const rows = items.map(it => {
+        const n = normalizeItem(it);
+        if (!n.priceTTC || n.priceTTC < 5000) return null;
+        return {
+          brand: s.brand,
+          model: s.model,
+          model_full: `${n.make} ${n.model} ${n.version||''}`.trim(),
+          year: n.year || null,
+          km: n.km || null,
+          price_chf: Math.round(n.priceTTC),
+          fuel: n.fuel || null,
+          seller_type: n.sellerType || null,
+          days_online: n.dom || null,
+          listing_url: n.url || null,
+          scrape_batch: batch,
+          scraped_at: new Date().toISOString()
+        };
+      }).filter(Boolean);
+
+      if (rows.length) {
+        const {error} = await sbClient.from('listings_ch').insert(rows);
+        if (error) throw new Error(error.message);
+        totalSaved += rows.length;
+      }
+    } catch(e) {
+      errors++;
+      console.warn(`Erreur scrape ${s.label}:`, e.message);
+    }
+
+    // Petite pause entre les scrapes pour éviter de surcharger Apify
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  btn.disabled = false;
+  btn.textContent = '🔍 Lancer le scrape global CH';
+
+  progress.innerHTML = `<div style="font-size:11px;padding:8px 10px;background:#E1F5EE;border-radius:5px;color:#085041">
+    ✓ Scrape terminé — ${totalSaved} annonces sauvegardées${errors>0?`, ${errors} erreurs`:''} · Batch: ${batch}
+  </div>`;
+
+  // Recharger les stats et le cache
+  await loadMarcheStats();
+  await loadBmCache();
+  renderDeals();
+}
+
 function buildAdminTable() {
   const tbody = document.getElementById('adm-tbody'); tbody.innerHTML='';
   Object.entries(SPECS).forEach(([key,s]) => {
@@ -1842,6 +2156,7 @@ function showPage(name,btn) {
   if(name==='pipeline') renderPipeline();
   if(name==='deals')    renderDeals();
   if(name==='heatmap')  renderStaticHeatmap();
+  if(name==='marche')   loadMarcheStats();
 }
 
 // ═══════════════════════════════════════════════════════════════
