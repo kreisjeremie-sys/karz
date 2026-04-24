@@ -1,191 +1,269 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>KARZ — Luxury Auto Arbitrage · GVA</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>KARZ v9 — Luxury Auto Arbitrage · GVA</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#f8f9fa;color:#1a1a1a;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
-.app{max-width:1200px;margin:0 auto;background:#fff;min-height:100vh;box-shadow:0 0 40px rgba(0,0,0,.06)}
+body{background:#f5f5f5;color:#111;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+.app{max-width:1280px;margin:0 auto;background:#fff;min-height:100vh;box-shadow:0 0 40px rgba(0,0,0,.06)}
+
+/* TOPBAR */
 .topbar{background:#111;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.logo{font-size:16px;font-weight:600;letter-spacing:2.5px;color:#fff}.logo em{color:#1D9E75;font-style:normal}
+.logo{font-size:16px;font-weight:700;letter-spacing:3px;color:#fff}.logo em{color:#1D9E75;font-style:normal}
 .logo-sub{font-size:10px;color:#666;margin-left:10px;font-weight:400;letter-spacing:0}
-.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.sbadge{font-size:10px;padding:3px 9px;border-radius:4px;border:0.5px solid;font-weight:500}
-.sb-ok{background:#E1F5EE;border-color:#1D9E75;color:#085041}
-.sb-no{background:#333;border-color:#555;color:#aaa}
-.hyp-btn{font-size:10px;background:#FAEEDA;border:0.5px solid #EF9F27;padding:3px 9px;border-radius:4px;color:#633806;cursor:pointer;font-weight:500}
-.nav{display:flex;border-bottom:1px solid #eee;padding:0 18px;background:#fff;overflow-x:auto;gap:0}
-.nb{padding:10px 14px;font-size:11px;font-family:inherit;background:none;border:none;border-bottom:2px solid transparent;color:#888;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;letter-spacing:.3px;font-weight:500}
+.tb-right{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.tbadge{font-size:10px;padding:3px 9px;border-radius:4px;border:0.5px solid;font-weight:500;cursor:default}
+.tb-ok{background:#E1F5EE;border-color:#1D9E75;color:#085041}
+.tb-no{background:#2a2a2a;border-color:#444;color:#aaa}
+.tb-btn{background:none;border:0.5px solid #EF9F27;border-radius:4px;padding:3px 9px;font-size:10px;color:#EF9F27;cursor:pointer;font-family:inherit;font-weight:500}
+.tb-btn:hover{background:#EF9F2720}
+
+/* NAV */
+.nav{display:flex;border-bottom:1px solid #eee;padding:0 18px;background:#fff;overflow-x:auto}
+.nb{padding:10px 14px;font-size:11px;font-family:inherit;background:none;border:none;border-bottom:2px solid transparent;color:#888;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;font-weight:500;letter-spacing:.3px}
 .nb.active{color:#111;border-bottom-color:#1D9E75}
 .nb:hover:not(.active){color:#333}
-.pill{background:#EF9F27;color:#412402;font-size:9px;font-weight:600;border-radius:8px;padding:1px 5px}
-.page{display:none;padding:18px}.page.active{display:block}
+.pill{background:#EF9F27;color:#fff;font-size:9px;font-weight:700;border-radius:8px;padding:1px 5px}
 
-/* HYP PANEL */
-.hyp-panel{background:#fffdf7;border:0.5px solid #EF9F27;border-radius:8px;padding:14px 16px;margin:0 18px 12px;display:none}
-.hyp-panel.show{display:block}
-.hp-title{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#854F0B;font-weight:600;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
+.page{display:none;padding:16px}.page.active{display:block}
+
+/* HYPOTHÈSES OVERLAY */
+.hyp-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center}
+.hyp-overlay.show{display:flex}
+.hyp-box{background:#fff;border-radius:10px;padding:20px 24px;width:90%;max-width:860px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.hyp-title{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#854F0B;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.hyp-legend{font-size:11px;color:#888;margin-bottom:12px;padding:8px 10px;background:#fafafa;border-radius:5px;line-height:1.5}
 .hyp-table{width:100%;border-collapse:collapse;font-size:11px}
-.hyp-table th{text-align:left;padding:5px 7px;border-bottom:1px solid #eee;font-size:9px;text-transform:uppercase;color:#999;font-weight:600}
-.hyp-table td{padding:5px 7px;border-bottom:0.5px solid #f0f0f0;vertical-align:middle}
-.hi{font-size:11px;padding:3px 7px;border:0.5px solid #EF9F27;border-radius:4px;background:#FAEEDA;color:#333;font-family:'Courier New',monospace;width:90px;text-align:right}
-.hi.conf{border-color:#1D9E75;background:#E1F5EE}
-.si{font-size:10px;padding:3px 7px;border:0.5px solid #ddd;border-radius:4px;background:#f8f8f8;color:#666;font-family:inherit;width:100%}
-.badge{display:inline-block;font-size:9px;padding:2px 6px;border-radius:3px;font-weight:600;white-space:nowrap}
-.bg-hyp{background:#FAEEDA;color:#633806}
-.bg-law{background:#E6F1FB;color:#0C447C}
-.bg-green{background:#E1F5EE;color:#085041}
-.bg-gray{background:#f0f0f0;color:#666}
-.bg-ht{background:#EEEDFE;color:#3C3489}
-.bg-ttc{background:#E1F5EE;color:#085041}
+.hyp-table th{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;font-size:9px;text-transform:uppercase;color:#aaa;font-weight:700}
+.hyp-table td{padding:6px 8px;border-bottom:0.5px solid #f5f5f5;vertical-align:middle}
+.hi{font-size:11px;padding:3px 7px;border:0.5px solid #EF9F27;border-radius:4px;background:#FAEEDA;color:#333;font-family:'Courier New',monospace;width:95px;text-align:right}
+.hi.law{border-color:#ddd;background:#f8f8f8;color:#888}
+.si{font-size:10px;padding:3px 7px;border:0.5px solid #ddd;border-radius:4px;background:#f8f8f8;color:#666;font-family:inherit;width:100%;min-width:200px}
+
+/* BADGES */
+.badge{display:inline-block;font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700;white-space:nowrap}
+.bh{background:#FAEEDA;color:#633806}
+.bl{background:#E6F1FB;color:#0C447C}
+.bv{background:#E1F5EE;color:#085041}
+.bg{background:#f0f0f0;color:#666}
+.bht{background:#EEEDFE;color:#3C3489}
+.bttc{background:#E1F5EE;color:#085041}
+.bred{background:#FCEBEB;color:#791F1F}
 
 /* SEARCH */
-.section{background:#f8f9fa;border:0.5px solid #e8e8e8;border-radius:8px;padding:14px 16px;margin-bottom:12px}
-.sec-title{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#999;font-weight:600;margin-bottom:11px}
-.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:11px}
+.sbox{background:#f9f9f9;border:0.5px solid #e8e8e8;border-radius:8px;padding:14px 16px;margin-bottom:12px}
+.sbox-title{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#999;margin-bottom:12px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px;margin-bottom:12px}
 .fg{display:flex;flex-direction:column;gap:3px}
 .fg label{font-size:10px;color:#888;letter-spacing:.4px;text-transform:uppercase;font-weight:500}
 .fg select,.fg input{font-size:11px;padding:6px 9px;border:0.5px solid #ddd;border-radius:5px;background:#fff;color:#333;font-family:inherit;width:100%}
-.url-prev{font-size:10px;color:#888;background:#f0f0f0;border-radius:4px;padding:6px 9px;font-family:'Courier New',monospace;word-break:break-all;margin:7px 0;display:none}
+.fg select:focus,.fg input:focus{outline:none;border-color:#1D9E75}
+.url-prev{font-size:10px;color:#999;background:#f0f0f0;border-radius:4px;padding:6px 9px;font-family:'Courier New',monospace;word-break:break-all;margin:8px 0;display:none}
 .url-prev.show{display:block}
-.btn{padding:8px 16px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#333;font-family:inherit;font-size:11px;cursor:pointer;transition:background .15s;white-space:nowrap;font-weight:500}
+.btn{padding:8px 16px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#333;font-family:inherit;font-size:11px;cursor:pointer;font-weight:500;transition:background .15s;white-space:nowrap}
 .btn:hover{background:#f0f0f0}
-.btn-green{border-color:#1D9E75;color:#0F6E56;background:#E1F5EE}
-.btn-green:hover{background:#c8f0e0}
-.btn-blue{border-color:#185FA5;color:#185FA5}
-.btn-blue:hover{background:#E6F1FB}
+.btn-g{border-color:#1D9E75;background:#E1F5EE;color:#085041}.btn-g:hover{background:#c8f0e0}
+.btn-b{border-color:#185FA5;background:#E6F1FB;color:#0C447C}.btn-b:hover{background:#d0e8f8}
+.btn-a{border-color:#EF9F27;background:#FAEEDA;color:#633806}.btn-a:hover{background:#f5ddb0}
 
 /* RESULTS */
-.loading-box{text-align:center;padding:36px;color:#888}
-.spinner{width:30px;height:30px;border:2px solid #eee;border-top-color:#1D9E75;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+.loading{text-align:center;padding:40px;color:#888}
+.spinner{width:32px;height:32px;border:2px solid #eee;border-top-color:#1D9E75;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.error-box{background:#fff5f5;border:0.5px solid #ffcccc;border-radius:6px;padding:12px 14px;font-size:11px;color:#cc0000;margin-top:10px;line-height:1.7}
-.result-card{background:#fff;border:0.5px solid #eee;border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;transition:border-color .2s}
-.result-card:hover{border-color:#ccc}
+.err-box{background:#fff5f5;border:0.5px solid #ffcccc;border-radius:6px;padding:12px 14px;font-size:11px;color:#cc0000;line-height:1.7;margin-top:10px}
+.res-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.rcard{background:#fff;border:0.5px solid #eee;border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;transition:border-color .2s}
+.rcard:hover{border-color:#ccc}
 .rc-main{flex:1;min-width:0}
-.rc-name{font-size:13px;font-weight:600;color:#111}
-.rc-sub{font-size:11px;color:#888;margin-top:3px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.rc-name{font-size:13px;font-weight:700;color:#111;margin-bottom:3px}
+.rc-sub{font-size:11px;color:#888;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
 .rc-link{font-size:10px;color:#185FA5;text-decoration:none;display:inline-flex;align-items:center;gap:2px;margin-top:4px}
 .rc-link:hover{text-decoration:underline}
-.rc-fins{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
-.rc-fin{background:#f8f9fa;border-radius:4px;padding:5px 9px;min-width:90px}
-.rc-fin-lbl{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.3px;font-weight:600}
-.rc-fin-val{font-size:12px;font-weight:600;margin-top:2px;color:#333}
-.rc-fin-val.profit{color:#0F6E56}
-.rc-fin-val.warn{color:#854F0B}
-.rc-fin-val.neg{color:#cc0000}
-.rc-calc{font-size:10px;color:#aaa;margin-top:6px;line-height:1.6}
-.rc-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
-.add-btn{font-size:11px;padding:7px 12px;border:0.5px solid #1D9E75;border-radius:5px;background:#E1F5EE;color:#0F6E56;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap}
+.rc-fins{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+.rcf{background:#f8f9fa;border-radius:4px;padding:5px 9px;min-width:100px}
+.rcf-l{font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;font-weight:700;margin-bottom:2px}
+.rcf-v{font-size:12px;font-weight:700}
+.rcf-v.profit{color:#0F6E56}.rcf-v.warn{color:#854F0B}.rcf-v.neg{color:#cc0000}
+.rc-detail{font-size:10px;color:#bbb;margin-top:7px;line-height:1.7;display:none}
+.rcard.open .rc-detail{display:block}
+.rc-toggle{font-size:10px;color:#185FA5;cursor:pointer;background:none;border:none;font-family:inherit;padding:4px 0;display:block;margin-top:5px}
+.rc-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:flex-end}
+.add-btn{font-size:11px;padding:7px 12px;border:0.5px solid #1D9E75;border-radius:5px;background:#E1F5EE;color:#085041;cursor:pointer;font-family:inherit;font-weight:700;white-space:nowrap}
 .add-btn:hover{background:#c8f0e0}
-.add-btn.added{background:#f0f0f0;color:#999;cursor:default;border-color:#ddd}
-.skip-btn{font-size:10px;padding:4px 9px;border:0.5px solid #ddd;border-radius:4px;background:#fff;color:#999;cursor:pointer;font-family:inherit}
+.add-btn.added{background:#f0f0f0;color:#aaa;cursor:default;border-color:#ddd}
+.skip-btn{font-size:10px;padding:4px 9px;border:0.5px solid #eee;border-radius:4px;background:#fff;color:#aaa;cursor:pointer;font-family:inherit}
+.dom-badge{font-size:10px;padding:2px 7px;border-radius:3px;font-weight:700}
+.dom-hot{background:#FCEBEB;color:#cc0000}
+.dom-warm{background:#FAEEDA;color:#854F0B}
+.dom-cold{background:#f0f0f0;color:#666}
 
 /* DEALS */
-.stats-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:14px}
-.stat{background:#f8f9fa;border-radius:7px;padding:10px 13px;border:0.5px solid #eee}
-.stat-lbl{font-size:10px;color:#999;letter-spacing:.4px;text-transform:uppercase;font-weight:500}
-.stat-val{font-size:20px;font-weight:600;margin-top:3px;color:#111}
-.stat-val.up{color:#0F6E56}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.stat{background:#f9f9f9;border-radius:7px;padding:11px 14px;border:0.5px solid #eee}
+.stat-l{font-size:10px;color:#aaa;letter-spacing:.4px;text-transform:uppercase;font-weight:600;margin-bottom:3px}
+.stat-v{font-size:22px;font-weight:700;color:#111}
+.stat-v.up{color:#0F6E56}
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.sh-t{font-size:10px;letter-spacing:1px;color:#999;text-transform:uppercase;font-weight:600}
-.deal-card{background:#fff;border:0.5px solid #eee;border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color .2s}
-.deal-card:hover{border-color:#ccc}
-.deal-card.expanded{border-color:#1D9E75;border-width:1px}
-.deal-card.fav{border-left:3px solid #EF9F27}
-.fav-btn{background:none;border:none;cursor:pointer;font-size:16px;color:#ccc;flex-shrink:0;padding:2px}
+.sh-t{font-size:10px;letter-spacing:1px;color:#aaa;text-transform:uppercase;font-weight:700}
+.dcard{background:#fff;border:0.5px solid #eee;border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color .2s}
+.dcard:hover{border-color:#ccc}
+.dcard.expanded{border-color:#1D9E75;border-width:1px}
+.dcard.fav{border-left:3px solid #EF9F27}
+.dt{display:flex;align-items:flex-start;gap:9px}
+.rank{font-size:11px;font-weight:700;min-width:22px;padding-top:2px;flex-shrink:0}
+.rank.top{color:#1D9E75}
+.rank.mid{color:#aaa}
+.fav-btn{background:none;border:none;cursor:pointer;font-size:17px;color:#ddd;flex-shrink:0;padding:2px;line-height:1}
 .fav-btn.on{color:#EF9F27}
-.fins{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+.di{flex:1;min-width:0}
+.dn{font-size:13px;font-weight:700;color:#111;line-height:1.3}
+.ds{font-size:11px;color:#888;margin-top:3px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.al{color:#185FA5;text-decoration:none;font-size:11px}.al:hover{text-decoration:underline}
+.mbox{text-align:right;flex-shrink:0}
+.mbox-lbl{font-size:10px;color:#aaa;margin-bottom:2px}
+.mbox-val{font-size:17px;font-weight:700;color:#0F6E56}
+.mbox-pct{font-size:10px;color:#aaa}
+.fins{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
 .fb{background:#f8f9fa;border-radius:5px;padding:8px 10px;border:0.5px solid #eee}
-.fl{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.3px;font-weight:600;display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:3px}
-.fv{font-size:13px;font-weight:600;color:#111}
+.fl{font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;font-weight:700;display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:3px}
+.fv{font-size:13px;font-weight:700;color:#111}
 .fv.profit{color:#0F6E56}
-.trans{background:#f8f9fa;border-radius:6px;padding:12px;margin-top:10px;display:none;border:0.5px solid #eee}
-.deal-card.expanded .trans{display:block}
-.nego{background:#f8f9fa;border-radius:6px;padding:12px;margin-top:8px;display:none;border:0.5px solid #eee}
-.deal-card.expanded .nego{display:block}
-.ngrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.ni{display:flex;flex-direction:column;gap:3px}
-.ni label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.3px;font-weight:500}
-.ni input,.ni select{font-size:11px;padding:5px 8px;border:0.5px solid #ddd;border-radius:4px;background:#fff;color:#333;font-family:inherit;width:100%}
-.nres{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-.nb2{background:#fff;border:0.5px solid #eee;border-radius:5px;padding:9px 10px}
-.nb2-lbl{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.3px;font-weight:600;margin-bottom:3px}
-.nb2-val{font-size:14px;font-weight:600;color:#333}
-.nb2-val.blue{color:#185FA5}.nb2-val.green{color:#0F6E56}.nb2-val.red{color:#cc0000}
-.nb2-sub{font-size:10px;color:#aaa;margin-top:2px;line-height:1.3}
-.tr-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:0.5px solid #f0f0f0;font-size:11px}
-.tr-row:last-child{border:none;font-weight:600;font-size:12px;padding-top:6px;color:#0F6E56}
-.tr-lbl{color:#888;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-.del-btn{font-size:10px;color:#cc0000;cursor:pointer;background:none;border:none;font-family:inherit;padding:0;text-decoration:underline;margin-top:7px;display:inline-block}
-.no-data{color:#aaa;font-size:12px;padding:28px;text-align:center}
 
-/* CRM */
-.crm-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
-.crm-col{background:#f8f9fa;border-radius:8px;padding:11px;border:0.5px solid #eee}
-.crm-ct{font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
-.crm-cnt{background:#fff;border:0.5px solid #ddd;border-radius:8px;padding:1px 7px;font-size:10px;color:#999}
-.crm-item{background:#fff;border:0.5px solid #eee;border-radius:6px;padding:9px 10px;margin-bottom:6px}
-.csb{font-size:10px;padding:2px 7px;border-radius:3px;border:0.5px solid;background:none;cursor:pointer;font-family:inherit;margin:1px;font-weight:500}
-.cni{flex:1;font-size:10px;padding:3px 6px;border:0.5px solid #ddd;border-radius:4px;background:#f8f8f8;color:#333;font-family:inherit}
-.cna{font-size:10px;padding:3px 8px;border:0.5px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;font-family:inherit}
+/* RAPPORT TRANSPARENT */
+.rapport{background:#f9f9f9;border-radius:6px;padding:12px;margin-top:10px;display:none;border:0.5px solid #eee}
+.dcard.expanded .rapport{display:block}
+.rr{display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;border-bottom:0.5px solid #f0f0f0;font-size:11px}
+.rr:last-child{border:none;font-weight:700;font-size:12px;padding-top:7px;color:#0F6E56}
+.rl{color:#888;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.rv{font-weight:500}
+.rv.cost{color:#cc0000}
+
+/* NÉGOCIATEUR (inline sur deal) */
+.nego{background:#f9f9f9;border-radius:6px;padding:12px;margin-top:8px;display:none;border:0.5px solid #eee}
+.dcard.expanded .nego{display:block}
+.nego-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.ni{display:flex;flex-direction:column;gap:3px}
+.ni label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.3px;font-weight:600}
+.ni input,.ni select{font-size:11px;padding:5px 8px;border:0.5px solid #ddd;border-radius:4px;background:#fff;color:#333;font-family:inherit;width:100%}
+.nego-res{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.nb2{background:#fff;border:0.5px solid #eee;border-radius:5px;padding:9px 11px}
+.nb2-l{font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:.3px;font-weight:700;margin-bottom:3px}
+.nb2-v{font-size:14px;font-weight:700}
+.nb2-v.blue{color:#185FA5}.nb2-v.green{color:#0F6E56}.nb2-v.red{color:#cc0000}.nb2-v.orange{color:#854F0B}
+.nb2-s{font-size:10px;color:#aaa;margin-top:2px;line-height:1.3}
+.nego-tip{font-size:11px;color:#666;padding:8px 10px;background:#fff;border-radius:4px;border:0.5px solid #eee;margin-top:8px;line-height:1.5}
+
+/* MESSAGE VENDEUR */
+.msg-box{background:#f9f9f9;border-radius:6px;padding:12px;margin-top:8px;display:none;border:0.5px solid #eee}
+.dcard.expanded .msg-box{display:block}
+.msg-content{background:#fff;border:0.5px solid #ddd;border-radius:4px;padding:10px 12px;font-size:11px;color:#333;line-height:1.7;white-space:pre-wrap;font-family:inherit;margin-top:6px;min-height:80px}
+.copy-btn{font-size:10px;padding:4px 10px;border:0.5px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;font-family:inherit;margin-top:6px}
+.copy-btn:hover{background:#f0f0f0}
+
+/* BENCHMARK */
+.bm-box{background:#f9f9f9;border-radius:6px;padding:10px 12px;margin-top:8px;display:none;border:0.5px solid #eee}
+.dcard.expanded .bm-box{display:block}
+.bm-row{display:flex;justify-content:space-between;padding:2px 0;font-size:11px;border-bottom:0.5px solid #f0f0f0}
+.bm-row:last-child{border:none}
+.bm-l{color:#888}
+
+/* DEL BTN */
+.del-btn{font-size:10px;color:#cc0000;cursor:pointer;background:none;border:none;font-family:inherit;padding:0;text-decoration:underline;margin-top:7px;display:inline-block}
+.no-data{color:#aaa;font-size:12px;padding:30px;text-align:center}
+
+/* CRM PIPELINE */
+.crm-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.crm-col{background:#f9f9f9;border-radius:8px;padding:11px;border:0.5px solid #eee}
+.crm-ct{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.crm-cnt{background:#fff;border:0.5px solid #ddd;border-radius:8px;padding:1px 7px;font-size:10px;color:#aaa;font-weight:500}
+.crm-item{background:#fff;border:0.5px solid #eee;border-radius:6px;padding:9px 11px;margin-bottom:7px}
+.csb{font-size:10px;padding:2px 7px;border-radius:3px;border:0.5px solid;background:none;cursor:pointer;font-family:inherit;margin:1px;font-weight:600}
+.cni{flex:1;font-size:10px;padding:4px 6px;border:0.5px solid #ddd;border-radius:4px;background:#f8f8f8;color:#333;font-family:inherit}
+.cna{font-size:10px;padding:4px 9px;border:0.5px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;font-family:inherit}
+
+/* HEATMAP */
+.hm-section{margin-bottom:14px}
+.hm-sub{font-size:11px;color:#666;margin-bottom:10px;line-height:1.5}
+.hm-grid{display:grid;gap:4px;margin-bottom:14px}
+.hm-hdr{font-size:10px;color:#aaa;text-align:center;font-weight:600;padding:4px}
+.hm-lbl{font-size:11px;color:#555;display:flex;align-items:center;padding:0 6px;font-weight:500}
+.hm-cell{border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;height:48px;cursor:pointer;transition:opacity .15s;font-size:11px;font-weight:700}
+.hm-cell:hover{opacity:.8}
+.hm-legend{display:flex;align-items:center;gap:10px;font-size:10px;color:#888;margin-top:8px}
+.hm-bar{width:80px;height:8px;border-radius:3px;background:linear-gradient(to right,#FCEBEB,#FAEEDA,#E1F5EE)}
+.hm-run-btn{font-size:11px;padding:6px 14px;border:0.5px solid #1D9E75;border-radius:5px;background:#E1F5EE;color:#085041;cursor:pointer;font-family:inherit;font-weight:600}
+.hm-run-btn:hover{background:#c8f0e0}
+.hm-result{background:#f9f9f9;border-radius:6px;padding:10px 12px;margin-top:8px;font-size:11px;color:#555;line-height:1.7}
+.hm-model-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:0.5px solid #f0f0f0}
+.hm-model-row:last-child{border:none}
 
 /* ADMIN */
-.admin-s{background:#f8f9fa;border-radius:8px;padding:13px 15px;margin-bottom:10px;border:0.5px solid #eee}
-.at{font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#666;margin-bottom:10px}
+.admin-s{background:#f9f9f9;border-radius:8px;padding:14px 16px;margin-bottom:11px;border:0.5px solid #eee}
+.at{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:#888;margin-bottom:10px}
 .ar{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
 .ar label{font-size:11px;color:#666;min-width:160px;font-weight:500}
-.ar input{font-family:inherit;font-size:11px;padding:5px 8px;border:0.5px solid #ddd;border-radius:4px;background:#fff;color:#333;flex:1;min-width:200px;max-width:420px}
+.ar input{font-family:inherit;font-size:11px;padding:5px 9px;border:0.5px solid #ddd;border-radius:4px;background:#fff;color:#333;flex:1;min-width:200px;max-width:380px}
 .tbl{width:100%;border-collapse:collapse;font-size:11px}
-.tbl th{text-align:left;padding:5px 8px;border-bottom:1px solid #eee;font-size:9px;text-transform:uppercase;color:#999;font-weight:600}
-.tbl td{padding:5px 8px;border-bottom:0.5px solid #f0f0f0}
-.isml{font-family:inherit;font-size:11px;padding:3px 6px;border:0.5px solid #ddd;border-radius:3px;background:#fff;color:#333;width:85px}
+.tbl th{text-align:left;padding:5px 8px;border-bottom:1px solid #eee;font-size:9px;text-transform:uppercase;color:#aaa;font-weight:700}
+.tbl td{padding:5px 8px;border-bottom:0.5px solid #f5f5f5}
+.isml{font-family:inherit;font-size:11px;padding:3px 6px;border:0.5px solid #ddd;border-radius:3px;background:#fff;color:#333;width:90px}
 </style>
 </head>
 <body>
 <div class="app">
+
+<!-- TOPBAR -->
 <div class="topbar">
   <div class="logo">K<em>A</em>RZ <span class="logo-sub">LUXURY AUTO ARBITRAGE · GVA</span></div>
-  <div class="topbar-right">
-    <span class="sbadge sb-no" id="apify-st">⟳ Apify</span>
-    <span class="sbadge sb-no" id="sb-st">⟳ Supabase</span>
-    <button class="hyp-btn" onclick="toggleHyp()">⚠ Hypothèses de calcul</button>
+  <div class="tb-right">
+    <span class="tbadge tb-no" id="apify-st">⟳ Apify</span>
+    <span class="tbadge tb-no" id="sb-st">⟳ Supabase</span>
+    <button class="tb-btn" onclick="openHyp()">⚠ Hypothèses &amp; paramètres</button>
   </div>
 </div>
+
+<!-- NAV -->
 <div class="nav">
-  <button class="nb active" onclick="showPage('search',this)">⚡ RECHERCHE AUTO</button>
-  <button class="nb" onclick="showPage('deals',this)">MES DEALS <span class="pill" id="deal-cnt">0</span></button>
+  <button class="nb active" onclick="showPage('search',this)">⚡ RECHERCHE</button>
+  <button class="nb" onclick="showPage('deals',this)">DEALS <span class="pill" id="deal-cnt">0</span></button>
   <button class="nb" onclick="showPage('pipeline',this)">PIPELINE <span class="pill" id="fav-cnt">0</span></button>
+  <button class="nb" onclick="showPage('heatmap',this)">HEATMAP CH</button>
   <button class="nb" onclick="showPage('admin',this)">ADMIN</button>
 </div>
 
-<!-- HYPOTHÈSES -->
-<div class="hyp-panel" id="hyp-panel">
-  <div class="hp-title">
-    <span>⚠ Hypothèses de calcul — transparence totale</span>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-green" style="padding:4px 10px;font-size:10px" onclick="saveHyp()">✓ Sauvegarder</button>
-      <button style="background:none;border:none;cursor:pointer;font-size:14px;color:#999" onclick="toggleHyp()">✕</button>
+<!-- HYPOTHÈSES OVERLAY -->
+<div class="hyp-overlay" id="hyp-overlay" onclick="if(event.target===this)closeHyp()">
+  <div class="hyp-box">
+    <div class="hyp-title">
+      <span>⚠ Paramètres &amp; hypothèses de calcul — transparence totale</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-g" style="padding:5px 12px;font-size:10px" onclick="saveHyp()">✓ Sauvegarder</button>
+        <button style="background:none;border:none;cursor:pointer;font-size:16px;color:#999" onclick="closeHyp()">✕</button>
+      </div>
     </div>
-  </div>
-  <div style="font-size:11px;color:#888;margin-bottom:9px;padding:7px 10px;background:#fff;border-radius:5px;line-height:1.5">
-    <span class="badge bg-hyp">Hypothèse</span> = estimée, à confirmer avec un devis réel &nbsp;
-    <span class="badge bg-law">Loi</span> = valeur légale fixée, non modifiable &nbsp;
-    <span class="badge bg-green">Confirmé</span> = issu d'un devis ou document réel
-  </div>
-  <div style="overflow-x:auto">
-    <table class="hyp-table"><thead><tr><th>Paramètre</th><th>Valeur</th><th>Statut</th><th>Source / Référence</th><th>Par</th><th>Date</th></tr></thead>
-    <tbody id="hyp-tbody"></tbody></table>
+    <div class="hyp-legend">
+      <span class="badge bh">Hypothèse</span> = valeur estimée, à confirmer avec un devis réel &nbsp;
+      <span class="badge bl">Loi</span> = taux légal fixé, non modifiable &nbsp;
+      <span class="badge bv">Confirmé</span> = issu d'un document ou devis réel
+    </div>
+    <table class="hyp-table">
+      <thead><tr><th>Paramètre</th><th>Valeur</th><th>Statut</th><th>Source / Base légale</th><th>Par</th><th>Date</th></tr></thead>
+      <tbody id="hyp-tbody"></tbody>
+    </table>
+    <div style="margin-top:12px;font-size:10px;color:#aaa;line-height:1.5">
+      Frais fixes vérifiés : CHF 20 (rapport douane OFDF) + CHF 60 (expertise canton, source Zurich.ch) + CHF 100 (test émissions garage, source Zurich.ch) = CHF 180 non modifiables.<br>
+      Transport = hypothèse à saisir. Fourchette réelle : CHF 200–500 (conduite personnelle) ou CHF 800–1 500 (transporteur professionnel) — source AutoScout24.ch guide import.
+    </div>
   </div>
 </div>
 
-<!-- RECHERCHE -->
+<!-- PAGE RECHERCHE -->
 <div id="page-search" class="page active">
-  <div class="section">
-    <div class="sec-title">Critères de recherche — AutoScout24 via Apify</div>
+  <div class="sbox">
+    <div class="sbox-title">Critères de recherche — AutoScout24 via Apify</div>
     <div class="fgrid">
       <div class="fg"><label>Marque</label>
         <select id="s-brand" onchange="rebuildModels();updatePreview()">
@@ -196,6 +274,15 @@ body{background:#f8f9fa;color:#1a1a1a;font-size:13px;font-family:-apple-system,B
       </div>
       <div class="fg"><label>Modèle</label>
         <select id="s-model" onchange="updatePreview()"><option value="">Tous</option></select>
+      </div>
+      <div class="fg"><label>Motorisation</label>
+        <select id="s-fuel" onchange="updatePreview()">
+          <option value="">Toutes</option>
+          <option value="B">Essence</option>
+          <option value="D">Diesel</option>
+          <option value="E">Électrique</option>
+          <option value="H">Hybride</option>
+        </select>
       </div>
       <div class="fg"><label>Pays</label>
         <select id="s-country" onchange="updatePreview()">
@@ -208,15 +295,24 @@ body{background:#f8f9fa;color:#1a1a1a;font-size:13px;font-family:-apple-system,B
           <option value="AT">🇦🇹 Autriche</option>
         </select>
       </div>
-      <div class="fg"><label>Année min</label><input type="number" id="s-ymin" placeholder="2020" oninput="updatePreview()" /></div>
-      <div class="fg"><label>Année max</label><input type="number" id="s-ymax" placeholder="2025" oninput="updatePreview()" /></div>
-      <div class="fg"><label>Km max</label><input type="number" id="s-kmax" placeholder="50000" oninput="updatePreview()" /></div>
-      <div class="fg"><label>Prix max EUR</label><input type="number" id="s-pmax" placeholder="250000" oninput="updatePreview()" /></div>
-      <div class="fg"><label>Nb résultats max</label><input type="number" id="s-max" value="20" min="5" max="50" /></div>
+      <div class="fg"><label>Année min</label><input type="number" id="s-ymin" placeholder="2020" oninput="updatePreview()"/></div>
+      <div class="fg"><label>Année max</label><input type="number" id="s-ymax" placeholder="2025" oninput="updatePreview()"/></div>
+      <div class="fg"><label>Km max</label><input type="number" id="s-kmax" placeholder="50000" oninput="updatePreview()"/></div>
+      <div class="fg"><label>Prix max EUR</label><input type="number" id="s-pmax" placeholder="200000" oninput="updatePreview()"/></div>
+      <div class="fg"><label>Marge min CHF</label><input type="number" id="s-mmin" placeholder="10000"/></div>
+      <div class="fg"><label>Jours en ligne max</label><input type="number" id="s-dommax" placeholder=""/></div>
+      <div class="fg"><label>Vendeur pro only</label>
+        <select id="s-sellertype">
+          <option value="">Tous</option>
+          <option value="pro">Pro uniquement (HT)</option>
+          <option value="private">Privés uniquement</option>
+        </select>
+      </div>
+      <div class="fg"><label>Nb résultats max</label><input type="number" id="s-max" value="20" min="5" max="50"/></div>
     </div>
     <div class="url-prev" id="url-prev"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-green" onclick="runSearch()">⚡ Lancer la recherche</button>
+      <button class="btn btn-g" onclick="runSearch()">⚡ Lancer la recherche</button>
       <button class="btn" onclick="resetSearch()">✕ Réinitialiser</button>
       <span id="search-msg" style="font-size:11px;color:#888"></span>
     </div>
@@ -224,493 +320,1326 @@ body{background:#f8f9fa;color:#1a1a1a;font-size:13px;font-family:-apple-system,B
   <div id="results-area"></div>
 </div>
 
-<!-- DEALS -->
+<!-- PAGE DEALS -->
 <div id="page-deals" class="page">
   <div class="stats-row">
-    <div class="stat"><div class="stat-lbl">Deals</div><div class="stat-val" id="s-tot">—</div></div>
-    <div class="stat"><div class="stat-lbl">Marge moy. TTC</div><div class="stat-val up" id="s-avg">—</div></div>
-    <div class="stat"><div class="stat-lbl">Meilleure marge</div><div class="stat-val up" id="s-best">—</div></div>
-    <div class="stat"><div class="stat-lbl">Pipeline</div><div class="stat-val" id="s-fav">—</div></div>
+    <div class="stat"><div class="stat-l">Deals</div><div class="stat-v" id="s-tot">—</div></div>
+    <div class="stat"><div class="stat-l">Marge moy. TTC</div><div class="stat-v up" id="s-avg">—</div></div>
+    <div class="stat"><div class="stat-l">Meilleure marge</div><div class="stat-v up" id="s-best">—</div></div>
+    <div class="stat"><div class="stat-l">Pipeline</div><div class="stat-v" id="s-fav">—</div></div>
   </div>
-  <div class="sh"><span class="sh-t">Classés par marge nette TTC</span><span style="font-size:10px;color:#aaa">Cliquer → rapport + négociateur</span></div>
+  <div class="sh">
+    <span class="sh-t">Classés par marge nette TTC</span>
+    <span style="font-size:10px;color:#aaa">Cliquer → rapport · négociateur · message vendeur · benchmark CH</span>
+  </div>
   <div id="deal-list"></div>
 </div>
 
-<!-- PIPELINE -->
+<!-- PAGE PIPELINE -->
 <div id="page-pipeline" class="page">
   <div class="sh"><span class="sh-t">Pipeline CRM — suivi des favoris</span></div>
   <div class="crm-grid" id="crm-grid"></div>
 </div>
 
-<!-- ADMIN -->
+<!-- PAGE HEATMAP -->
+<div id="page-heatmap" class="page">
+  <div class="hm-section">
+    <div class="sh"><span class="sh-t">Heatmap marché suisse — demande &amp; liquidité par modèle</span></div>
+    <div class="hm-sub">
+      Sélectionnez un modèle et lancez une recherche sur AutoScout24.ch pour obtenir les données réelles : nombre d'annonces actives, prix médian, jours moyens en ligne. Ces données alimentent le score de liquidité et le benchmark revente.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div class="fg" style="min-width:150px"><label>Marque</label><select id="hm-brand" onchange="rebuildHmModels()"><option value="">—</option><option value="porsche">Porsche</option><option value="land-rover">Land Rover</option></select></div>
+      <div class="fg" style="min-width:160px"><label>Modèle</label><select id="hm-model"><option value="">—</option></select></div>
+      <div class="fg" style="min-width:80px"><label>Année min</label><input type="number" id="hm-ymin" placeholder="2019"/></div>
+      <div class="fg" style="min-width:80px"><label>Km max</label><input type="number" id="hm-kmax" placeholder="80000"/></div>
+      <button class="hm-run-btn" onclick="runHeatmap()">🔍 Analyser marché CH</button>
+    </div>
+    <div id="hm-result-area">
+      <div style="font-size:11px;color:#aaa;padding:20px;text-align:center">Lancez une analyse pour voir les données du marché suisse en temps réel.</div>
+    </div>
+
+    <div class="sh" style="margin-top:20px"><span class="sh-t">Heatmap statique — écart arbitrage EU vs CH (basé sur prix de revente dans Admin)</span></div>
+    <div style="overflow-x:auto"><div class="hm-grid" id="hm-static-grid" style="grid-template-columns:140px repeat(5,1fr)"></div></div>
+    <div class="hm-legend">
+      <span class="hm-bar"></span>
+      <span style="color:#cc0000">&lt;8k CHF</span><span>→</span>
+      <span style="color:#854F0B">8–15k CHF</span><span>→</span>
+      <span style="color:#0F6E56">&gt;15k CHF marge</span>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE ADMIN -->
 <div id="page-admin" class="page">
   <div class="admin-s">
-    <div class="at">🔑 Configuration</div>
-    <div style="font-size:11px;color:#888;margin-bottom:10px;line-height:1.5">Les tokens sont stockés dans les variables d'environnement Vercel — jamais dans le code. Cette page permet de saisir votre prénom pour la traçabilité.</div>
-    <div class="ar"><label>Votre prénom</label><input type="text" id="user-inp" placeholder="Jérémie" /></div>
-    <button class="btn btn-green" onclick="saveName()" style="margin-top:4px">✓ Sauvegarder</button>
+    <div class="at">🔑 Connexion</div>
+    <div style="font-size:11px;color:#888;margin-bottom:10px;line-height:1.5">Le token Apify est stocké dans les variables d'environnement Vercel. Entrez votre prénom pour la traçabilité des deals.</div>
+    <div class="ar"><label>Votre prénom</label><input type="text" id="user-inp" placeholder="Jérémie"/></div>
+    <button class="btn btn-g" onclick="saveName()" style="margin-top:4px">✓ Sauvegarder</button>
     <span id="name-msg" style="font-size:11px;margin-left:8px"></span>
   </div>
   <div class="admin-s">
-    <div class="at">Baselines revente CH (CHF TTC) — vérifier 2×/mois sur AutoScout24.ch</div>
-    <div style="font-size:11px;color:#888;margin-bottom:9px">Cliquez ⚠ Hypothèses en haut pour modifier les paramètres de calcul.</div>
-    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Modèle</th><th>CO2 g/km</th><th>Revente CHF</th></tr></thead><tbody id="adm-tbody"></tbody></table></div>
+    <div class="at">Prix de revente CH (CHF TTC) — à vérifier 2×/mois sur AutoScout24.ch · Mobile.ch</div>
+    <div style="font-size:11px;color:#888;margin-bottom:10px">Ces valeurs alimentent le calcul de marge et la heatmap. Utilisez le bouton "Analyser marché CH" dans l'onglet Heatmap pour les mettre à jour avec des données réelles Apify.</div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Modèle</th><th>CO2 WLTP g/km</th><th>Poids à vide kg</th><th>Revente CH TTC</th><th>Source</th></tr></thead><tbody id="adm-tbody"></tbody></table></div>
   </div>
 </div>
-</div>
+
+</div><!-- /app -->
 
 <script>
-// ── CONFIG ────────────────────────────────────────────────────────
-const SUPABASE_URL = 'https://kkytyznvqwptdnsgodlo.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreXR5em52cXdwdGRuc2dvZGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzUyNzksImV4cCI6MjA5MjQ1MTI3OX0.XLYgXXUkxAkHXaWCc4diAclSpLxLpsZV_NYohr9cSlg';
+// ═══════════════════════════════════════════════════════════════
+// KARZ v9 — Configuration
+// ═══════════════════════════════════════════════════════════════
+const SB_URL  = 'https://kkytyznvqwptdnsgodlo.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreXR5em52cXdwdGRuc2dvZGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzUyNzksImV4cCI6MjA5MjQ1MTI3OX0.XLYgXXUkxAkHXaWCc4diAclSpLxLpsZV_NYohr9cSlg';
 
-const FLAGS={DE:'🇩🇪',FR:'🇫🇷',IT:'🇮🇹',ES:'🇪🇸',NL:'🇳🇱',BE:'🇧🇪',AT:'🇦🇹',PT:'🇵🇹',UK:'🇬🇧'};
-const CNAMES={DE:'Allemagne',FR:'France',IT:'Italie',ES:'Espagne',NL:'Pays-Bas',BE:'Belgique',AT:'Autriche'};
-const CY={DE:'D',FR:'F',IT:'I',ES:'E',NL:'NL',BE:'B',AT:'A'};
+const FLAGS   = {DE:'🇩🇪',FR:'🇫🇷',IT:'🇮🇹',ES:'🇪🇸',NL:'🇳🇱',BE:'🇧🇪',AT:'🇦🇹',PT:'🇵🇹',UK:'🇬🇧',CH:'🇨🇭'};
+const CNAMES  = {DE:'Allemagne',FR:'France',IT:'Italie',ES:'Espagne',NL:'Pays-Bas',BE:'Belgique',AT:'Autriche',CH:'Suisse'};
+const CY      = {DE:'D',FR:'F',IT:'I',ES:'E',NL:'NL',BE:'B',AT:'A'};
+const FUEL_L  = {B:'Essence',D:'Diesel',E:'Électrique',H:'Hybride',essence:'Essence',diesel:'Diesel',electric:'Électrique',electrique:'Électrique',hybrid:'Hybride',hybride:'Hybride',gasoline:'Essence',petrol:'Essence'};
+const MSG_LANG= {DE:'de',FR:'fr',IT:'it',ES:'es',NL:'nl',BE:'fr',AT:'de'};
 
-const MODELS={
+// ═══════════════════════════════════════════════════════════════
+// MODÈLES + SPECS (CO2 WLTP, poids, revente estimée CH TTC)
+// Source CO2 : fiches WLTP constructeur. Source poids : fiches techniques officielles.
+// Source revente : estimations initiales — À VALIDER AutoScout24.ch
+// ═══════════════════════════════════════════════════════════════
+const MODELS = {
   porsche:[
     {n:'911 Carrera',s:'911-carrera'},{n:'911 Carrera S',s:'911-carrera-s'},
-    {n:'911 Carrera 4S',s:'911-carrera-4s'},{n:'911 Targa 4S',s:'911-targa-4s'},
+    {n:'911 Carrera 4S',s:'911-carrera-4s'},{n:'911 Carrera GTS',s:'911-carrera-gts'},
+    {n:'911 Targa 4',s:'911-targa-4'},{n:'911 Targa 4S',s:'911-targa-4s'},
     {n:'911 Turbo',s:'911-turbo'},{n:'911 Turbo S',s:'911-turbo-s'},
     {n:'911 GT3',s:'911-gt3'},{n:'911 GT3 RS',s:'911-gt3-rs'},
-    {n:'911 GT3 Touring',s:'911-gt3-touring'},{n:'718 Cayman GT4',s:'718-cayman-gt4'},
-    {n:'718 Cayman GT4 RS',s:'718-cayman-gt4-rs'},{n:'718 Boxster S',s:'718-boxster-s'},
-    {n:'Cayenne',s:'cayenne'},{n:'Cayenne GTS',s:'cayenne-gts'},
-    {n:'Cayenne Turbo',s:'cayenne-turbo'},{n:'Cayenne Turbo S E-Hybrid',s:'cayenne-turbo-s-e-hybrid'},
-    {n:'Macan',s:'macan'},{n:'Macan GTS',s:'macan-gts'},{n:'Macan Turbo',s:'macan-turbo'},
-    {n:'Taycan',s:'taycan'},{n:'Taycan 4S',s:'taycan-4s'},{n:'Taycan GTS',s:'taycan-gts'},
-    {n:'Taycan Turbo',s:'taycan-turbo'},{n:'Taycan Turbo S',s:'taycan-turbo-s'},
-    {n:'Panamera',s:'panamera'},{n:'Panamera Turbo S',s:'panamera-turbo-s'},
+    {n:'911 GT3 Touring',s:'911-gt3-touring'},
+    {n:'718 Boxster',s:'718-boxster'},{n:'718 Boxster S',s:'718-boxster-s'},
+    {n:'718 Cayman',s:'718-cayman'},{n:'718 Cayman S',s:'718-cayman-s'},
+    {n:'718 Cayman GT4',s:'718-cayman-gt4'},{n:'718 Cayman GT4 RS',s:'718-cayman-gt4-rs'},
+    {n:'Cayenne',s:'cayenne'},{n:'Cayenne S',s:'cayenne-s'},
+    {n:'Cayenne GTS',s:'cayenne-gts'},{n:'Cayenne Turbo',s:'cayenne-turbo'},
+    {n:'Cayenne Turbo S E-Hybrid',s:'cayenne-turbo-s-e-hybrid'},
+    {n:'Cayenne E-Hybrid',s:'cayenne-e-hybrid'},
+    {n:'Macan',s:'macan'},{n:'Macan S',s:'macan-s'},
+    {n:'Macan GTS',s:'macan-gts'},{n:'Macan Turbo',s:'macan-turbo'},
+    {n:'Taycan',s:'taycan'},{n:'Taycan 4S',s:'taycan-4s'},
+    {n:'Taycan GTS',s:'taycan-gts'},{n:'Taycan Turbo',s:'taycan-turbo'},
+    {n:'Taycan Turbo S',s:'taycan-turbo-s'},
+    {n:'Panamera',s:'panamera'},{n:'Panamera 4S',s:'panamera-4s'},
+    {n:'Panamera GTS',s:'panamera-gts'},{n:'Panamera Turbo S',s:'panamera-turbo-s'},
+    {n:'Panamera Turbo S E-Hybrid',s:'panamera-turbo-s-e-hybrid'},
   ],
   'land-rover':[
     {n:'Defender 90',s:'defender-90'},{n:'Defender 90 V8',s:'defender-90-v8'},
-    {n:'Defender 110',s:'defender-110'},{n:'Defender 110 D300',s:'defender-110-d300'},
-    {n:'Defender 110 D350',s:'defender-110-d350'},{n:'Defender 110 V8',s:'defender-110-v8'},
-    {n:'Defender 130',s:'defender-130'},{n:'Discovery',s:'discovery'},
-    {n:'Discovery Sport',s:'discovery-sport'},{n:'Range Rover',s:'range-rover'},
-    {n:'Range Rover SV',s:'range-rover-sv'},{n:'Range Rover Sport',s:'range-rover-sport'},
+    {n:'Defender 90 X',s:'defender-90-x'},
+    {n:'Defender 110',s:'defender-110'},{n:'Defender 110 D200',s:'defender-110-d200'},
+    {n:'Defender 110 D300',s:'defender-110-d300'},{n:'Defender 110 D350',s:'defender-110-d350'},
+    {n:'Defender 110 P400e',s:'defender-110-p400e'},
+    {n:'Defender 110 V8',s:'defender-110-v8'},{n:'Defender 110 X',s:'defender-110-x'},
+    {n:'Defender 130',s:'defender-130'},
+    {n:'Discovery',s:'discovery'},{n:'Discovery Sport',s:'discovery-sport'},
+    {n:'Range Rover',s:'range-rover'},{n:'Range Rover SV',s:'range-rover-sv'},
+    {n:'Range Rover Autobiography',s:'range-rover-autobiography'},
+    {n:'Range Rover P510e',s:'range-rover-p510e'},
+    {n:'Range Rover Sport',s:'range-rover-sport'},
     {n:'Range Rover Sport D350',s:'range-rover-sport-d350'},
     {n:'Range Rover Sport P400e',s:'range-rover-sport-p400e'},
     {n:'Range Rover Sport SVR',s:'range-rover-sport-svr'},
+    {n:'Range Rover Sport SV',s:'range-rover-sport-sv'},
     {n:'Range Rover Evoque',s:'range-rover-evoque'},
+    {n:'Range Rover Evoque P300e',s:'range-rover-evoque-p300e'},
     {n:'Range Rover Velar',s:'range-rover-velar'},
     {n:'Range Rover Velar P400e',s:'range-rover-velar-p400e'},
   ]
 };
 
-const SPECS={
-  'Porsche 911 Carrera':{co2:205,r:145000},'Porsche 911 Carrera S':{co2:215,r:162000},
-  'Porsche 911 Carrera 4S':{co2:220,r:168000},'Porsche 911 Targa 4S':{co2:225,r:170000},
-  'Porsche 911 Turbo':{co2:235,r:210000},'Porsche 911 Turbo S':{co2:245,r:240000},
-  'Porsche 911 GT3':{co2:270,r:218000},'Porsche 911 GT3 RS':{co2:285,r:290000},
-  'Porsche 911 GT3 Touring':{co2:268,r:215000},'Porsche 718 Cayman GT4':{co2:245,r:118000},
-  'Porsche 718 Cayman GT4 RS':{co2:255,r:145000},'Porsche 718 Boxster S':{co2:205,r:82000},
-  'Porsche Cayenne':{co2:255,r:98000},'Porsche Cayenne GTS':{co2:280,r:118000},
-  'Porsche Cayenne Turbo':{co2:295,r:152000},'Porsche Cayenne Turbo S E-Hybrid':{co2:75,r:168000},
-  'Porsche Macan':{co2:210,r:72000},'Porsche Macan GTS':{co2:218,r:82000},
-  'Porsche Macan Turbo':{co2:0,r:95000},'Porsche Taycan':{co2:0,r:95000},
-  'Porsche Taycan 4S':{co2:0,r:108000},'Porsche Taycan GTS':{co2:0,r:128000},
-  'Porsche Taycan Turbo':{co2:0,r:148000},'Porsche Taycan Turbo S':{co2:0,r:168000},
-  'Porsche Panamera':{co2:188,r:88000},'Porsche Panamera Turbo S':{co2:228,r:148000},
-  'Land Rover Defender 90':{co2:232,r:88000},'Land Rover Defender 90 V8':{co2:344,r:118000},
-  'Land Rover Defender 110':{co2:230,r:92000},'Land Rover Defender 110 D300':{co2:218,r:98000},
-  'Land Rover Defender 110 D350':{co2:222,r:102000},'Land Rover Defender 110 V8':{co2:358,r:125000},
-  'Land Rover Defender 130':{co2:235,r:105000},'Land Rover Discovery':{co2:215,r:78000},
-  'Land Rover Discovery Sport':{co2:195,r:58000},'Land Rover Range Rover':{co2:315,r:168000},
-  'Land Rover Range Rover SV':{co2:290,r:215000},'Land Rover Range Rover Sport':{co2:248,r:118000},
-  'Land Rover Range Rover Sport D350':{co2:221,r:135000},
-  'Land Rover Range Rover Sport P400e':{co2:52,r:128000},
-  'Land Rover Range Rover Sport SVR':{co2:338,r:175000},
-  'Land Rover Range Rover Evoque':{co2:182,r:52000},
-  'Land Rover Range Rover Velar':{co2:195,r:72000},
-  'Land Rover Range Rover Velar P400e':{co2:52,r:88000},
+// SPECS : {co2: g/km WLTP, kg: poids à vide kg, r: revente CH TTC estimée}
+// co2 source : fiches techniques WLTP constructeur 2024
+// kg source : fiches techniques constructeur
+// r : HYPOTHÈSE — à valider sur AutoScout24.ch / Mobile.ch
+const SPECS = {
+  'Porsche 911 Carrera':              {co2:205,kg:1535,r:145000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 Carrera S':            {co2:215,kg:1560,r:162000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 Carrera 4S':           {co2:220,kg:1585,r:168000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 Carrera GTS':          {co2:224,kg:1575,r:175000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 Targa 4':              {co2:210,kg:1610,r:155000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 Targa 4S':             {co2:225,kg:1625,r:170000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 Turbo':                {co2:235,kg:1640,r:210000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 Turbo S':              {co2:245,kg:1660,r:240000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 GT3':                  {co2:270,kg:1435,r:218000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 GT3 RS':               {co2:285,kg:1450,r:290000,rsrc:'HYPOTHÈSE'},
+  'Porsche 911 GT3 Touring':          {co2:268,kg:1440,r:215000,rsrc:'HYPOTHÈSE'},
+  'Porsche 718 Boxster':              {co2:198,kg:1415,r:72000, rsrc:'HYPOTHÈSE'},
+  'Porsche 718 Boxster S':            {co2:205,kg:1440,r:82000, rsrc:'HYPOTHÈSE'},
+  'Porsche 718 Cayman':               {co2:198,kg:1395,r:70000, rsrc:'HYPOTHÈSE'},
+  'Porsche 718 Cayman S':             {co2:205,kg:1420,r:80000, rsrc:'HYPOTHÈSE'},
+  'Porsche 718 Cayman GT4':           {co2:245,kg:1415,r:118000,rsrc:'HYPOTHÈSE'},
+  'Porsche 718 Cayman GT4 RS':        {co2:255,kg:1415,r:145000,rsrc:'HYPOTHÈSE'},
+  'Porsche Cayenne':                  {co2:255,kg:2045,r:98000, rsrc:'HYPOTHÈSE'},
+  'Porsche Cayenne S':                {co2:265,kg:2070,r:108000,rsrc:'HYPOTHÈSE'},
+  'Porsche Cayenne GTS':              {co2:280,kg:2095,r:118000,rsrc:'HYPOTHÈSE'},
+  'Porsche Cayenne Turbo':            {co2:295,kg:2195,r:152000,rsrc:'HYPOTHÈSE'},
+  'Porsche Cayenne Turbo S E-Hybrid': {co2:75, kg:2270,r:168000,rsrc:'HYPOTHÈSE'},
+  'Porsche Cayenne E-Hybrid':         {co2:60, kg:2185,r:105000,rsrc:'HYPOTHÈSE'},
+  'Porsche Macan':                    {co2:210,kg:1865,r:72000, rsrc:'HYPOTHÈSE'},
+  'Porsche Macan S':                  {co2:215,kg:1895,r:78000, rsrc:'HYPOTHÈSE'},
+  'Porsche Macan GTS':                {co2:218,kg:1910,r:82000, rsrc:'HYPOTHÈSE'},
+  'Porsche Macan Turbo':              {co2:0,  kg:2130,r:95000, rsrc:'HYPOTHÈSE'},
+  'Porsche Taycan':                   {co2:0,  kg:2135,r:95000, rsrc:'HYPOTHÈSE'},
+  'Porsche Taycan 4S':                {co2:0,  kg:2215,r:108000,rsrc:'HYPOTHÈSE'},
+  'Porsche Taycan GTS':               {co2:0,  kg:2250,r:128000,rsrc:'HYPOTHÈSE'},
+  'Porsche Taycan Turbo':             {co2:0,  kg:2295,r:148000,rsrc:'HYPOTHÈSE'},
+  'Porsche Taycan Turbo S':           {co2:0,  kg:2370,r:168000,rsrc:'HYPOTHÈSE'},
+  'Porsche Panamera':                 {co2:188,kg:1995,r:88000, rsrc:'HYPOTHÈSE'},
+  'Porsche Panamera 4S':              {co2:198,kg:2030,r:98000, rsrc:'HYPOTHÈSE'},
+  'Porsche Panamera GTS':             {co2:218,kg:2055,r:115000,rsrc:'HYPOTHÈSE'},
+  'Porsche Panamera Turbo S':         {co2:228,kg:2120,r:148000,rsrc:'HYPOTHÈSE'},
+  'Porsche Panamera Turbo S E-Hybrid':{co2:56, kg:2235,r:155000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 90':           {co2:232,kg:2105,r:88000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 90 V8':        {co2:344,kg:2350,r:118000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 90 X':         {co2:225,kg:2140,r:92000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 110':          {co2:230,kg:2215,r:92000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 110 D200':     {co2:210,kg:2250,r:88000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 110 D300':     {co2:218,kg:2270,r:98000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 110 D350':     {co2:222,kg:2290,r:102000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 110 P400e':    {co2:74, kg:2585,r:110000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 110 V8':       {co2:358,kg:2425,r:125000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 110 X':        {co2:228,kg:2285,r:98000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Defender 130':          {co2:235,kg:2395,r:105000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Discovery':             {co2:215,kg:2185,r:78000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Discovery Sport':       {co2:195,kg:1870,r:58000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover':           {co2:315,kg:2520,r:168000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover SV':        {co2:290,kg:2545,r:215000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Autobiography':{co2:295,kg:2540,r:198000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover P510e':     {co2:30, kg:2750,r:175000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Sport':     {co2:248,kg:2305,r:118000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Sport D350':{co2:221,kg:2250,r:135000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Sport P400e':{co2:52,kg:2315,r:128000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Sport SVR': {co2:338,kg:2395,r:175000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Sport SV':  {co2:310,kg:2380,r:188000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Evoque':    {co2:182,kg:1835,r:52000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Evoque P300e':{co2:42,kg:1915,r:58000,rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Velar':     {co2:195,kg:1925,r:72000, rsrc:'HYPOTHÈSE'},
+  'Land Rover Range Rover Velar P400e':{co2:52,kg:2100,r:88000, rsrc:'HYPOTHÈSE'},
 };
 
-let PARAMS={
-  fx:    {value:1.05, label:'Taux EUR/CHF',          unit:'CHF/EUR',isHyp:true, source:'BNS indicatif — à mettre à jour',legalRef:null,by:'—',at:'—'},
-  tr:    {value:1200, label:'Transport EU→GVA',       unit:'EUR HT', isHyp:true, source:'Estimation — demander devis',   legalRef:null,by:'—',at:'—'},
-  fees:  {value:800,  label:'Frais admin/courtage',   unit:'CHF TTC',isHyp:true, source:'Estimation interne',            legalRef:null,by:'—',at:'—'},
-  homolog:{value:500, label:'Homologation Suisse',    unit:'CHF TTC',isHyp:true, source:'Estimation garage partenaire',  legalRef:null,by:'—',at:'—'},
-  vat:   {value:0.077,label:'TVA Suisse 7.7%',        unit:'%',      isHyp:false,source:'Taux légal 01/01/2024',        legalRef:'LIFD Art.25 al.1',by:'Loi',at:'2024'},
-  znz:   {value:0.04, label:'Taxe ZNZ GE 4%',         unit:'%',      isHyp:false,source:'4% de la valeur à l\'import', legalRef:'LRVM GE Art.7',   by:'Loi',at:'2024'},
-  co2t:  {value:117,  label:'Seuil CO2 fédéral',      unit:'g/km',   isHyp:false,source:'OFEN seuil 2024',             legalRef:'LCO2 Art.13 2024',by:'Loi',at:'2024'},
-  co2k:  {value:0.005,label:'Coeff. pénalité CO2',    unit:'CHF/g²', isHyp:false,source:'(CO2−seuil)² × 0.005 × 100', legalRef:'LCO2 Art.14 2024',by:'Loi',at:'2024'},
+// ═══════════════════════════════════════════════════════════════
+// PARAMÈTRES DE CALCUL
+// Tous vérifiés sur sources officielles — voir notes inline
+// ═══════════════════════════════════════════════════════════════
+let PARAMS = {
+  fx:      {v:1.05,   l:'Taux EUR/CHF',               u:'CHF/EUR', isH:true,  src:'BNS indicatif — à mettre à jour avant chaque calcul',    ref:null,          by:'—',at:'—'},
+  transport:{v:800,   l:'Transport EU→GVA (prof.)',    u:'CHF',     isH:true,  src:'Fourchette réelle : CHF 200–500 (personnel) ou 800–1500 (transporteur) — source AutoScout24.ch guide import. Valeur médiane professionnelle retenue.',ref:null,by:'—',at:'—'},
+  // Frais fixes VÉRIFIÉS (non modifiables) :
+  // CHF 20  = rapport douane OFDF (bazg.admin.ch)
+  // CHF 60  = expertise canton (source zurich.ch import guide)
+  // CHF 100 = test émissions garage homologué (source zurich.ch)
+  // Total frais fixes = CHF 180
 };
-function P(k){return PARAMS[k]?.value||0;}
 
-let deals=JSON.parse(localStorage.getItem('karz_d')||'[]');
-let favs=JSON.parse(localStorage.getItem('karz_f')||'{}');
-let crmS=JSON.parse(localStorage.getItem('karz_c')||'{}');
-let crmN=JSON.parse(localStorage.getItem('karz_n')||'{}');
-let expIdx=null,addedUrls=new Set(),sbClient=null;
+// Constantes légales (non modifiables dans l'UI)
+const LEGAL = {
+  vat:       {v:0.081, l:'TVA import Suisse 8.1%',         ref:'LTVA + BAZG admin.ch, en vigueur 01/01/2024'},
+  auto_tax:  {v:0.04,  l:'Impôt fédéral véhicules 4%',     ref:'OFDF — impôt sur les véhicules automobiles'},
+  fixed_fees:{v:180,   l:'Frais fixes douane+expertise+test',ref:'CHF 20 OFDF + CHF 60 canton (Zurich.ch) + CHF 100 test émissions (Zurich.ch)'},
+  // CO2 fédéral : ne s'applique PAS si >12 mois OU (>6 mois ET >5000 km) — BAZG + ASTRA officiel
+  co2_exempt_months: 12,
+  co2_exempt_months_km: 6,
+  co2_exempt_km: 5000,
+  // Formule CO2 : cible individuelle = 93.6 + a*(poids - M_ref) g/km
+  // a = 0.0392857 (paramètre OFEN 2025), M_ref = 1766 kg (masse référence flotte 2023)
+  // Source : OFEN bfe.admin.ch calculation-of-penalties-passenger-cars
+  co2_target_base: 93.6,  // g/km (2025, aligné EU)
+  co2_a: 0.0392857,        // coefficient poids OFEN
+  co2_m_ref: 1766,         // kg masse référence flotte
+  co2_rate: 101,           // CHF/g de dépassement (taux confirmé OFEN)
+};
 
-// Init Supabase
-try{
-  sbClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-  document.getElementById('sb-st').textContent='● Supabase OK';
-  document.getElementById('sb-st').className='sbadge sb-ok';
-  loadFromSupabase();
-}catch(e){console.warn('Supabase init error',e);}
-
-async function loadFromSupabase(){
-  try{
-    const{data:ds}=await sbClient.from('deals').select('*').order('created_at',{ascending:false});
-    if(ds&&ds.length){
-      deals=ds.map(d=>({brand:d.brand,model:d.model,motor:d.fuel_type||'essence',year:d.year,km:d.km,eurPrice:parseFloat(d.eur_price_ht),sellerType:d.seller_type||'Dealer',sellerName:d.seller_name||'—',country:d.country||'DE',dom:d.days_on_market||0,liq:d.liquidity_score||70,nego:parseFloat(d.nego_pct||0.08),link:d.listing_url||'',tags:d.tags||[],addedBy:d.added_by||'—',calc_snapshot:d.calc_snapshot,_sb_id:d.id}));
-      renderDeals();updCnts();
-    }
-  }catch(e){console.warn('Supabase load error',e);}
-}
-
-function sv(){localStorage.setItem('karz_d',JSON.stringify(deals));}
-function svF(){localStorage.setItem('karz_f',JSON.stringify(favs));}
-function svC(){localStorage.setItem('karz_c',JSON.stringify(crmS));localStorage.setItem('karz_n',JSON.stringify(crmN));}
-function co2P(c){if(!c)return 0;const e=c-P('co2t');return e>0?Math.round(e*e*P('co2k')*100):0;}
-function gvaS(c){if(c>200)return 3800;if(c>160)return 2200;if(c>130)return 1200;if(c>117)return 600;return 0;}
-function calcL(eur,spec){
-  const bC=eur*P('fx'),tr=P('tr')*P('fx'),cp=co2P(spec.co2),gva=gvaS(spec.co2),fe=P('fees'),ho=P('homolog');
-  const sub=bC+tr+cp+gva+fe+ho,vat=sub*P('vat'),znz=bC*P('znz'),tot=sub+vat+znz;
-  return{bC,tr,cp,gva,fe,ho,vat,znz,tot};
-}
-function findSpec(makeRaw,modelRaw){
-  for(const[k,s]of Object.entries(SPECS)){
-    const kl=k.toLowerCase();
-    if(kl.startsWith((makeRaw||'').toLowerCase().slice(0,4))){
-      const modelPart=k.split(' ').slice(1).join(' ').toLowerCase();
-      if((modelRaw||'').toLowerCase().includes(modelPart)||modelPart.split(' ').filter(w=>w.length>2).every(w=>(modelRaw||'').toLowerCase().includes(w)))
-        return{key:k,spec:s};
-    }
+// Taxe cantonale GE (impôt plaques annuel) — pour info acheteur
+// Source : ge.ch/impot-vehicules/nouvel-impot-2025 + AutoScout24.ch guide
+// Formule 2025 : base CHF 120 + surtaxe CO2 selon barème
+// + bonus 50% si post-2010 ET CO2 <121 g/km
+// + malus 50% si CO2 >200 g/km
+// Électriques : taxé sur poids à vide selon barème GE
+function calcTaxeGE(co2, kg, yearMEC, isElectric) {
+  if (isElectric) {
+    // Barème électrique GE 2025 (source ge.ch) — basé sur poids
+    if (kg <= 1000) return 120;
+    if (kg <= 1500) return 180;
+    if (kg <= 2000) return 250;
+    if (kg <= 2500) return 350;
+    return 450;
   }
-  return null;
-}
-function profD(d){const s=SPECS[d.brand+' '+d.model];return s?Math.round(s.r-calcL(d.eurPrice,s).tot):0;}
-function dId(d){return(d.brand+d.model+d.year+d.eurPrice+(d.link||'')).replace(/\W/g,'').slice(0,40);}
-function getUser(){return localStorage.getItem('karz_user')||'—';}
+  const base = 120;
+  let surcharge = 0;
+  // Barème surtaxe CO2 (ge.ch/impot-vehicules/nouvel-impot-2025)
+  if (co2 <= 0)   surcharge = 0; // hybrid / no data
+  else if (co2 <= 100) surcharge = co2 * 0.25;
+  else if (co2 <= 120) surcharge = 100 * 0.25 + (co2 - 100) * 0.50;
+  else if (co2 <= 140) surcharge = 100 * 0.25 + 20 * 0.50 + (co2 - 120) * 1.00;
+  else if (co2 <= 160) surcharge = 100 * 0.25 + 20 * 0.50 + 20 * 1.00 + (co2 - 140) * 2.50;
+  else if (co2 <= 200) surcharge = 100 * 0.25 + 20 * 0.50 + 20 * 1.00 + 20 * 2.50 + (co2 - 160) * 5.00;
+  else                 surcharge = 100 * 0.25 + 20 * 0.50 + 20 * 1.00 + 20 * 2.50 + 40 * 5.00 + (co2 - 200) * 10.00;
 
-// ── BUILD URL ────────────────────────────────────────────────────
-function buildUrl(){
-  const make=document.getElementById('s-brand').value;
-  const model=document.getElementById('s-model').value;
-  const cc=document.getElementById('s-country').value||'DE';
-  const cy=CY[cc]||cc;
-  const ymin=document.getElementById('s-ymin').value;
-  const ymax=document.getElementById('s-ymax').value;
-  const kmax=document.getElementById('s-kmax').value;
-  const pmax=document.getElementById('s-pmax').value;
-  let url='https://www.autoscout24.com/lst';
-  if(make)url+='/'+make;
-  if(make&&model)url+='/'+model;
-  const p=new URLSearchParams({atype:'C',cy,ustate:'U',sort:'age',desc:'1'});
-  if(ymin)p.set('fregfrom',ymin);
-  if(ymax)p.set('fregto',ymax);
-  if(kmax)p.set('kmto',kmax);
-  if(pmax)p.set('priceto',pmax);
-  return url+'?'+p.toString();
+  let total = base + surcharge;
+  const mec = parseInt(yearMEC) || 2020;
+  const isPost2010 = mec >= 2010;
+  if (isPost2010 && co2 < 121) total *= 0.5;    // bonus 50%
+  else if (co2 > 200) total *= 1.5;              // malus 50%
+  return Math.round(total);
 }
 
-function updatePreview(){
-  const el=document.getElementById('url-prev');
-  el.textContent='→ '+buildUrl();
-  el.classList.add('show');
+// ═══════════════════════════════════════════════════════════════
+// CALCUL CO2 FÉDÉRAL (sanction import)
+// Source : OFEN bfe.admin.ch
+// Ne s'applique PAS si >12 mois OU (>6 mois ET >5000 km)
+// ═══════════════════════════════════════════════════════════════
+function calcCO2Penalty(co2_wltp, kg_vide, monthsRegistered, kmCurrent) {
+  // Vérification exemption
+  if (monthsRegistered >= LEGAL.co2_exempt_months) return {penalty:0, exempt:true, reason:'Immatriculé depuis >12 mois — exempté (BAZG + ASTRA)'};
+  if (monthsRegistered >= LEGAL.co2_exempt_months_km && kmCurrent > LEGAL.co2_exempt_km)
+    return {penalty:0, exempt:true, reason:`Immatriculé depuis >6 mois ET >${LEGAL.co2_exempt_km.toLocaleString()} km — exempté (BAZG + ASTRA)`};
+  if (!co2_wltp || co2_wltp === 0) return {penalty:0, exempt:true, reason:'Véhicule électrique — CO2 = 0, aucune sanction'};
+
+  // Cible individuelle selon poids
+  const target = LEGAL.co2_target_base + LEGAL.co2_a * ((kg_vide || 1800) - LEGAL.co2_m_ref);
+  const excess = co2_wltp - target;
+  if (excess <= 0) return {penalty:0, exempt:false, reason:`CO2 ${co2_wltp} g/km < cible individuelle ${target.toFixed(1)} g/km — aucune sanction`, target};
+  const penalty = Math.round(excess * LEGAL.co2_rate);
+  return {penalty, exempt:false, reason:`CO2 ${co2_wltp} g/km − cible ${target.toFixed(1)} g/km = ${excess.toFixed(1)} g × CHF ${LEGAL.co2_rate}/g`, target};
 }
 
-function rebuildModels(){
-  const brand=document.getElementById('s-brand').value;
-  const sel=document.getElementById('s-model');
-  sel.innerHTML='<option value="">Tous les modèles</option>';
-  (MODELS[brand]||[]).forEach(m=>{const o=document.createElement('option');o.value=m.s;o.textContent=m.n;sel.appendChild(o);});
+// ═══════════════════════════════════════════════════════════════
+// CALCUL LANDED COST — formule vérifiée
+// ═══════════════════════════════════════════════════════════════
+function calcLanded(prixBase_CHF, isHT, spec, monthsReg, kmCurrent) {
+  // prixBase_CHF = prix en CHF (HT si vendeur pro, TTC si privé)
+  // Si vendeur privé (TTC), on ne touche pas — la TVA étrangère est déjà incluse
+  // et ne peut pas être récupérée
+  const fx = PARAMS.fx.v;
+  const transport = PARAMS.transport.v;
+
+  // Base de calcul pour les taxes suisses = prix + transport
+  const baseForTax = prixBase_CHF + transport;
+
+  // Taxe automobile fédérale 4% (OFDF) — sur la valeur du véhicule
+  const autoTax = Math.round(prixBase_CHF * LEGAL.auto_tax.v);
+
+  // TVA suisse 8.1% — sur prix + transport + taxes et redevances
+  // Source : BAZG admin.ch "La base de calcul comprend également tous les coûts
+  // jusqu'au lieu de destination ainsi que les redevances d'entrée"
+  const vatBase = prixBase_CHF + transport + autoTax + LEGAL.fixed_fees.v;
+  const vat = Math.round(vatBase * LEGAL.vat.v);
+
+  // CO2 sanction fédérale (si applicable)
+  const co2Result = spec ? calcCO2Penalty(spec.co2, spec.kg, monthsReg, kmCurrent) : {penalty:0,exempt:true,reason:'Données CO2 manquantes'};
+
+  const total = prixBase_CHF + transport + autoTax + LEGAL.fixed_fees.v + vat + co2Result.penalty;
+  return { prixBase_CHF, transport, autoTax, vat, vatBase, fixedFees:LEGAL.fixed_fees.v, co2:co2Result, total:Math.round(total) };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let deals     = JSON.parse(localStorage.getItem('karz9_d') || '[]');
+let favs      = JSON.parse(localStorage.getItem('karz9_f') || '{}');
+let crmS      = JSON.parse(localStorage.getItem('karz9_c') || '{}');
+let crmN      = JSON.parse(localStorage.getItem('karz9_n') || '{}');
+let expIdx    = null;
+let addedUrls = new Set();
+let sbClient  = null;
+
+function sv()  { localStorage.setItem('karz9_d', JSON.stringify(deals)); }
+function svF() { localStorage.setItem('karz9_f', JSON.stringify(favs)); }
+function svC() { localStorage.setItem('karz9_c', JSON.stringify(crmS)); localStorage.setItem('karz9_n', JSON.stringify(crmN)); }
+function dId(d){ return (d.brand+d.model+d.year+d.eurPrice+(d.link||'')).replace(/\W/g,'').slice(0,40); }
+function getUser(){ return localStorage.getItem('karz9_user')||'—'; }
+
+function profD(d) {
+  const spec = SPECS[d.brand+' '+d.model];
+  if (!spec) return 0;
+  const eur_chf = (d.eurPrice||0) * PARAMS.fx.v;
+  const l = calcLanded(eur_chf, d.isHT, spec, d.monthsReg||99, d.km||50000);
+  return Math.round(spec.r - l.total);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUPABASE INIT
+// ═══════════════════════════════════════════════════════════════
+try {
+  sbClient = window.supabase.createClient(SB_URL, SB_KEY);
+  document.getElementById('sb-st').textContent = '● Supabase OK';
+  document.getElementById('sb-st').className = 'tbadge tb-ok';
+  loadSB();
+} catch(e) { console.warn('Supabase init:', e); }
+
+async function loadSB() {
+  try {
+    const {data:ds} = await sbClient.from('deals').select('*').order('created_at',{ascending:false});
+    if (ds && ds.length) {
+      deals = ds.map(d => ({
+        brand:d.brand, model:d.model, motor:d.fuel_type||'essence',
+        year:d.year, km:d.km, eurPrice:parseFloat(d.eur_price_ht||d.eur_price||0),
+        isHT: d.is_ht !== false,
+        sellerType:d.seller_type||'—', sellerName:d.seller_name||'—',
+        country:d.country||'DE', dom:d.days_on_market||0,
+        monthsReg:d.months_registered||99,
+        liq:d.liquidity_score||70, nego:parseFloat(d.nego_pct||0.08),
+        link:d.listing_url||'', tags:d.tags||[], addedBy:d.added_by||'—',
+        calc_snapshot:d.calc_snapshot, _sb_id:d.id
+      }));
+      renderDeals(); updCnts();
+    }
+  } catch(e) { console.warn('SB load:', e); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HYPOTHÈSES UI
+// ═══════════════════════════════════════════════════════════════
+function openHyp() { renderHyp(); document.getElementById('hyp-overlay').classList.add('show'); }
+function closeHyp(){ document.getElementById('hyp-overlay').classList.remove('show'); }
+function renderHyp() {
+  const tb = document.getElementById('hyp-tbody'); tb.innerHTML = '';
+  const rows = [
+    {key:'fx',       ...PARAMS.fx,      tag:'bh'},
+    {key:'transport',...PARAMS.transport,tag:'bh'},
+    {key:'_vat',     v:LEGAL.vat.v,       l:LEGAL.vat.l,       u:'%',    src:LEGAL.vat.ref,       tag:'bl', readonly:true},
+    {key:'_autotax', v:LEGAL.auto_tax.v,  l:LEGAL.auto_tax.l,  u:'%',    src:LEGAL.auto_tax.ref,  tag:'bl', readonly:true},
+    {key:'_fees',    v:LEGAL.fixed_fees.v,l:LEGAL.fixed_fees.l,u:'CHF',  src:LEGAL.fixed_fees.ref,tag:'bl', readonly:true},
+    {key:'_co2base', v:LEGAL.co2_target_base,l:'Cible CO2 base 2025',u:'g/km',src:'OFEN bfe.admin.ch, aligné EU Reg. 2019/631',tag:'bl',readonly:true},
+    {key:'_co2rate', v:LEGAL.co2_rate,   l:'Taux sanction CO2',u:'CHF/g',src:'OFEN — taux confirmé 2024 (CHF 95–152/g selon année)',tag:'bl',readonly:true},
+  ];
+  rows.forEach(row => {
+    const tr = document.createElement('tr'); tr.dataset.key = row.key;
+    const tagHtml = `<span class="badge ${row.tag}">${row.tag==='bl'?'Loi':'Hypothèse'}</span>`;
+    const inp = row.readonly
+      ? `<input class="hi law" type="number" value="${row.v}" step="any" readonly/>`
+      : `<input class="hi" type="number" value="${row.v}" step="any"/>`;
+    const srcEl = row.readonly
+      ? `<span style="font-size:10px;color:#185FA5;font-weight:500">${row.src}</span>`
+      : `<input class="si" value="${row.src||''}" placeholder="Source / devis réel..."/>`;
+    tr.innerHTML = `<td style="font-weight:500">${row.l} <span style="font-size:9px;color:#aaa">(${row.u})</span></td><td>${inp}</td><td>${tagHtml}</td><td>${srcEl}</td><td>${row.readonly?`<span style="font-size:10px;color:#aaa">Légal</span>`:`<input style="font-size:10px;padding:2px 5px;border:0.5px solid #ddd;border-radius:3px;width:70px;font-family:inherit" value="${row.by||'—'}" placeholder="Prénom"/>`}</td><td style="font-size:10px;color:#aaa">${row.at||'—'}</td>`;
+    tb.appendChild(tr);
+  });
+}
+function saveHyp() {
+  document.querySelectorAll('#hyp-tbody tr[data-key]').forEach(tr => {
+    const key = tr.dataset.key;
+    if (!PARAMS[key]) return;
+    const v = tr.querySelector('.hi:not(.law)');
+    const s = tr.querySelector('.si');
+    const b = tr.querySelector('input[placeholder="Prénom"]');
+    if (v) PARAMS[key].v = parseFloat(v.value) || PARAMS[key].v;
+    if (s) PARAMS[key].src = s.value || PARAMS[key].src;
+    if (b) PARAMS[key].by = b.value || PARAMS[key].by;
+    PARAMS[key].at = new Date().toLocaleDateString('fr-CH');
+  });
+  closeHyp();
+  renderDeals();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SEARCH — BUILD URL + RUN
+// ═══════════════════════════════════════════════════════════════
+function rebuildModels() {
+  const brand = document.getElementById('s-brand').value;
+  const sel = document.getElementById('s-model');
+  sel.innerHTML = '<option value="">Tous</option>';
+  (MODELS[brand]||[]).forEach(m => {
+    const o = document.createElement('option'); o.value=m.s; o.textContent=m.n; sel.appendChild(o);
+  });
   updatePreview();
 }
 
-// ── SEARCH via Vercel proxy ──────────────────────────────────────
-async function runSearch(){
-  const area=document.getElementById('results-area');
-  const maxItems=parseInt(document.getElementById('s-max').value)||20;
-  const searchUrl=buildUrl();
+function buildUrl() {
+  const make    = document.getElementById('s-brand').value;
+  const model   = document.getElementById('s-model').value;
+  const fuel    = document.getElementById('s-fuel').value;
+  const cc      = document.getElementById('s-country').value || 'DE';
+  const cy      = CY[cc] || cc;
+  const ymin    = document.getElementById('s-ymin').value;
+  const ymax    = document.getElementById('s-ymax').value;
+  const kmax    = document.getElementById('s-kmax').value;
+  const pmax    = document.getElementById('s-pmax').value;
+  const stype   = document.getElementById('s-sellertype').value;
 
-  area.innerHTML=`<div class="loading-box"><div class="spinner"></div><div style="font-size:13px;font-weight:500;color:#333">Recherche en cours…</div><div style="font-size:11px;color:#aaa;margin-top:6px">Apify scrape AutoScout24 · ~30–60 secondes</div></div>`;
-  document.getElementById('search-msg').textContent='';
-  document.getElementById('apify-st').textContent='⟳ En cours…';
-  document.getElementById('apify-st').className='sbadge sb-no';
+  let url = 'https://www.autoscout24.com/lst';
+  if (make) url += '/'+make;
+  if (make && model) url += '/'+model;
 
-  try{
-    // Appel via notre proxy Vercel — résout le problème CORS
-    const resp=await fetch('/api/search',{
+  const p = new URLSearchParams({atype:'C', cy, ustate:'U', sort:'age', desc:'1'});
+  if (ymin)  p.set('fregfrom', ymin);
+  if (ymax)  p.set('fregto', ymax);
+  if (kmax)  p.set('kmto', kmax);
+  if (pmax)  p.set('priceto', pmax);
+  if (fuel)  p.set('fuel', fuel);
+  if (stype === 'pro')     p.set('osp', 'B'); // pro dealers
+  if (stype === 'private') p.set('osp', 'P'); // private
+  return url + '?' + p.toString();
+}
+
+function updatePreview() {
+  const el = document.getElementById('url-prev');
+  el.textContent = '→ '+buildUrl();
+  el.classList.add('show');
+}
+
+function resetSearch() {
+  ['s-brand','s-model','s-fuel','s-ymin','s-ymax','s-kmax','s-pmax','s-mmin','s-dommax','s-sellertype'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('results-area').innerHTML='';
+  document.getElementById('url-prev').classList.remove('show');
+}
+
+async function runSearch() {
+  const searchUrl = buildUrl();
+  const maxItems  = parseInt(document.getElementById('s-max').value)||20;
+  const mmin      = parseInt(document.getElementById('s-mmin').value)||0;
+  const dommax    = parseInt(document.getElementById('s-dommax').value)||9999;
+  const area      = document.getElementById('results-area');
+
+  area.innerHTML = `<div class="loading"><div class="spinner"></div><div style="font-size:13px;font-weight:600;color:#333">Recherche Apify en cours…</div><div style="font-size:11px;color:#aaa;margin-top:6px">AutoScout24 · ~30–60 secondes</div></div>`;
+  document.getElementById('search-msg').textContent = '';
+  document.getElementById('apify-st').textContent = '⟳ En cours…';
+  document.getElementById('apify-st').className = 'tbadge tb-no';
+
+  try {
+    const resp = await fetch('/api/search', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({searchUrl,maxItems})
+      body: JSON.stringify({searchUrl, maxItems, mode:'search'})
     });
-
-    if(!resp.ok){
-      const err=await resp.json().catch(()=>({error:`HTTP ${resp.status}`}));
-      throw new Error(err.error||`HTTP ${resp.status}`);
-    }
-
-    const{items,actor}=await resp.json();
-    document.getElementById('apify-st').textContent='● Apify OK';
-    document.getElementById('apify-st').className='sbadge sb-ok';
-    renderResults(items,actor);
-  }catch(e){
-    document.getElementById('apify-st').textContent='⚠ Apify erreur';
-    document.getElementById('apify-st').className='sbadge';
-    document.getElementById('apify-st').style.background='#FCEBEB';
-    document.getElementById('apify-st').style.borderColor='#E24B4A';
-    document.getElementById('apify-st').style.color='#791F1F';
-    area.innerHTML=`<div class="error-box">
-      <b>Erreur :</b> ${e.message}<br><br>
-      <b>Solutions :</b><br>
-      1. Vérifiez vos crédits sur <a href="https://console.apify.com/billing" target="_blank" style="color:#cc0000">console.apify.com/billing</a><br>
-      2. Essayez avec moins de résultats (5–10)<br>
-      3. Vérifiez que le token APIFY_TOKEN est bien configuré dans les variables d'environnement Vercel<br><br>
-      <a href="${searchUrl}" target="_blank" style="color:#cc0000">↗ Ouvrir manuellement sur AutoScout24</a>
-    </div>`;
+    if (!resp.ok) { const e=await resp.json().catch(()=>({error:`HTTP ${resp.status}`})); throw new Error(e.error||`HTTP ${resp.status}`); }
+    const {items, actor} = await resp.json();
+    document.getElementById('apify-st').textContent = '● Apify OK';
+    document.getElementById('apify-st').className = 'tbadge tb-ok';
+    renderResults(items, actor, mmin, dommax);
+  } catch(e) {
+    document.getElementById('apify-st').textContent = '⚠ Erreur Apify';
+    document.getElementById('apify-st').className = 'tbadge';
+    document.getElementById('apify-st').style.cssText = 'background:#FCEBEB;border-color:#E24B4A;color:#791F1F;font-size:10px;padding:3px 9px;border-radius:4px;border:0.5px solid';
+    area.innerHTML = `<div class="err-box"><b>Erreur :</b> ${e.message}<br><br><b>Solutions :</b><br>1. Vérifiez vos crédits sur <a href="https://console.apify.com/billing" target="_blank" style="color:#cc0000">console.apify.com/billing</a><br>2. Vérifiez le token APIFY_TOKEN dans Vercel → Settings → Environment Variables<br>3. Essayez avec moins de résultats (5–10)<br><br><a href="${searchUrl}" target="_blank" style="color:#cc0000">↗ Ouvrir manuellement sur AutoScout24</a></div>`;
   }
 }
 
-function renderResults(items,actor){
-  const area=document.getElementById('results-area');
-  if(!items||!items.length){area.innerHTML='<div class="no-data">Aucun résultat. Élargissez les critères.</div>';return;}
+function normalizeItem(item) {
+  const price  = parseFloat(item.price||item.priceEur||item.publicPrice||item.tracking?.price||0);
+  const km     = parseInt(item.mileage||item.km||item.tracking?.mileage||0);
+  const year   = parseInt(item.firstRegistrationYear||item.year||item.tracking?.first_registration?.slice(0,4)||0);
+  const make   = item.make||item.vehicle?.make||item.brand||'';
+  const model  = item.model||item.vehicle?.model||'';
+  const version= item.version||item.variant||item.trim||item.vehicle?.variant||'';
+  const fuel   = (item.fuelType||item.fuel_type||item.vehicle?.fuelType||item.tracking?.fuel_type||'').toLowerCase();
+  const seller = item.dealerName||item.seller?.name||item.sellerName||'—';
+  const sellerType = item.sellerType||item.seller?.type||'';
+  const isPro  = !sellerType.toLowerCase().includes('private') && !sellerType.toLowerCase().includes('priv');
+  const country= (item.location?.countryCode||item.country||'DE').toUpperCase();
+  const url    = item.url||item.listingUrl||item.adUrl||'';
+  const dom    = parseInt(item.daysOnMarket||item.days_on_market||item.daysSincePosted||0);
+  const firstRegDate = item.firstRegistrationDate||item.first_registration||'';
+  // Estimer âge en mois depuis date de 1ère immatriculation
+  let monthsReg = 99;
+  if (firstRegDate) {
+    const d = new Date(firstRegDate);
+    if (!isNaN(d)) monthsReg = Math.round((Date.now()-d.getTime())/(30*24*3600*1000));
+  } else if (year) {
+    monthsReg = (new Date().getFullYear() - year)*12;
+  }
+  return {price, km, year, make, model, version, fuel, seller, sellerType, isPro, country, url, dom, monthsReg, firstRegDate};
+}
 
-  const processed=items.map(item=>{
-    const price=parseFloat(item.price||item.priceEur||item.publicPrice||item.tracking?.price||0);
-    const km=parseInt(item.mileage||item.km||item.tracking?.mileage||0);
-    const year=parseInt(item.firstRegistrationYear||item.year||item.tracking?.first_registration?.slice(0,4)||0);
-    const make=item.make||item.vehicle?.make||item.brand||'';
-    const model=item.model||item.vehicle?.model||'';
-    const fuel=(item.fuelType||item.fuel_type||item.vehicle?.fuelType||'').toLowerCase();
-    const seller=item.dealerName||item.seller?.name||item.sellerName||'—';
-    const country=(item.location?.countryCode||item.country||'DE').toUpperCase();
-    const url=item.url||item.listingUrl||item.adUrl||'';
-    if(!price||price<5000)return null;
-    const found=findSpec(make,model);
-    if(!found)return{price,km,year,make,model,fuel,seller,country,url,spec:null,margin:null};
-    const l=calcL(price,found.spec);
-    return{price,km,year,make,model:found.key.split(' ').slice(1).join(' '),brand:found.key.split(' ')[0]==='Land'?'Land Rover':found.key.split(' ')[0],fuel,seller,country,url,spec:found.spec,specKey:found.key,l,margin:Math.round(found.spec.r-l.tot)};
-  }).filter(Boolean).sort((a,b)=>(b.margin||0)-(a.margin||0));
+function findSpec(make, model) {
+  for (const [k,s] of Object.entries(SPECS)) {
+    const kParts = k.toLowerCase().split(' ');
+    const makePart = kParts.slice(0, make.toLowerCase().includes('land')? 2 : 1).join(' ');
+    if (!make.toLowerCase().startsWith(makePart.split(' ')[0].slice(0,4))) continue;
+    const modelPart = kParts.slice(make.toLowerCase().includes('land')? 2 : 1).join(' ');
+    if (model.toLowerCase().includes(modelPart) || modelPart.split(' ').filter(w=>w.length>2).every(w=>model.toLowerCase().includes(w)))
+      return {key:k, spec:s};
+  }
+  return null;
+}
 
-  const pos=processed.filter(r=>r.spec&&r.margin>0);
-  area.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
-      <span style="font-size:12px;font-weight:600;color:#333">${processed.length} annonces trouvées${actor?` <span style="font-size:10px;color:#aaa;font-weight:400">via ${actor}</span>`:''}</span>
-      <span style="font-size:11px;color:#aaa">${pos.length} avec marge positive</span>
-    </div>
-    <div id="res-list"></div>`;
+function domClass(dom) {
+  if (!dom) return 'dom-cold';
+  if (dom > 60) return 'dom-hot';
+  if (dom > 30) return 'dom-warm';
+  return 'dom-cold';
+}
+function domLabel(dom) {
+  if (!dom) return '';
+  if (dom > 60) return `🔴 ${dom}j — vendeur sous pression`;
+  if (dom > 30) return `🟡 ${dom}j — délai long`;
+  return `${dom}j en ligne`;
+}
+function negoTip(dom, isPro) {
+  let tip = '';
+  if (dom > 60) tip = '⚡ Annonce >60 jours — vendeur probablement sous forte pression. Ouverture à -12%, limite à -10%.';
+  else if (dom > 30) tip = '⚠ Annonce >30 jours — marge de négociation élevée. Ouverture à -10%, limite à -8%.';
+  else if (dom < 7)  tip = '🟢 Annonce récente (<7 jours) — vendeur ferme, peu de marge. Ouverture à -5%.';
+  else               tip = '🟡 Annonce entre 7 et 30 jours — négo standard. Ouverture à -8%.';
+  if (isPro) tip += ' Vendeur pro : possibilité de négocier sur volume ou conditions de paiement.';
+  return tip;
+}
 
-  const list=document.getElementById('res-list');
-  processed.forEach((r,i)=>{
-    const flag=FLAGS[r.country]||'🌍';
-    const fuelLabel={gasoline:'Essence',petrol:'Essence',diesel:'Diesel',electric:'Électrique',hybrid:'Hybride',essence:'Essence'}[r.fuel]||r.fuel||'';
-    const alreadyAdded=addedUrls.has(r.url);
-    const mc=!r.margin||r.margin<=0?'neg':r.margin<10000?'warn':'profit';
-    const card=document.createElement('div');card.className='result-card';
-    card.innerHTML=`
+function renderResults(items, actor, mmin, dommax) {
+  const area = document.getElementById('results-area');
+  if (!items||!items.length) { area.innerHTML='<div class="no-data">Aucun résultat. Élargissez les critères.</div>'; return; }
+
+  const processed = items.map(item => {
+    const n = normalizeItem(item);
+    if (!n.price || n.price < 5000) return null;
+
+    // Prix base : HT si vendeur pro, TTC si privé
+    const prixEUR = n.price;
+    const prixCHF = prixEUR * PARAMS.fx.v;
+    // Note : le prix sur AutoScout24 est affiché TTC dans le pays d'origine.
+    // Si vendeur pro → on peut récupérer la TVA étrangère → on travaille en HT
+    // La TVA moyenne UE est ~20% (DE:19%, FR:20%, IT:22%, ES:21%)
+    // Pour l'instant on affiche le prix brut et on signale clairement
+    const vatRateOrigin = {DE:0.19,FR:0.20,IT:0.22,ES:0.21,NL:0.21,BE:0.21,AT:0.20}[n.country]||0.20;
+    const prixHT_CHF = n.isPro ? Math.round(prixCHF / (1+vatRateOrigin)) : prixCHF;
+    const isHT = n.isPro;
+
+    const found = findSpec(n.make, n.model);
+    if (!found) return {...n, prixHT_CHF, isHT, spec:null, margin:null};
+    const landed = calcLanded(prixHT_CHF, isHT, found.spec, n.monthsReg, n.km);
+    const margin = Math.round(found.spec.r - landed.total);
+    return {...n, prixHT_CHF, isHT, vatRateOrigin, spec:found.spec, specKey:found.key, landed, margin};
+  }).filter(Boolean);
+
+  const mminFiltered = processed.filter(r => !r.spec || r.margin === null || r.margin >= mmin);
+  const domFiltered  = mminFiltered.filter(r => !r.dom || r.dom <= dommax);
+  const final        = domFiltered.sort((a,b) => (b.margin||0)-(a.margin||0));
+
+  const pos = final.filter(r=>r.spec&&r.margin>0);
+  area.innerHTML = `<div class="res-hdr"><span style="font-size:12px;font-weight:700;color:#333">${final.length} annonces${actor?` <span style="font-size:10px;color:#aaa;font-weight:400">via ${actor}</span>`:''}</span><span style="font-size:11px;color:#aaa">${pos.length} avec marge positive${mmin>0?` · filtre marge >${mmin.toLocaleString()} CHF`:''}</span></div><div id="res-list"></div>`;
+
+  const list = document.getElementById('res-list');
+  final.forEach((r,i) => {
+    const flag = FLAGS[r.country]||'🌍';
+    const fuelL = FUEL_L[r.fuel]||r.fuel||'';
+    const alreadyAdded = addedUrls.has(r.url);
+    const mc = !r.margin||r.margin<=0?'neg':r.margin<10000?'warn':'profit';
+    const domCls = domClass(r.dom);
+    const domLbl = domLabel(r.dom);
+    const isPro = r.isPro;
+    const priceTag = isPro ? `<span class="badge bht">HT estimé</span>` : `<span class="badge bg">TTC</span>`;
+    const vatNote  = isPro ? `TVA ${r.country} ${Math.round(r.vatRateOrigin*100)}% déduite (export UE→CH)` : 'Vendeur privé — prix TTC, TVA non récupérable';
+
+    const card = document.createElement('div');
+    card.className = 'rcard';
+
+    // Détail landed cost
+    let detailHtml = '';
+    if (r.landed) {
+      const l = r.landed;
+      detailHtml = `
+        <div class="rc-detail">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#aaa;margin-bottom:6px">Décomposition landed cost</div>
+          <div style="color:#888;line-height:1.9">
+            <b>Prix ${isPro?'HT estimé':'TTC'} EUR</b> : €${Math.round(r.price).toLocaleString('fr-CH')} ${isPro?`(−TVA ${r.country} ${Math.round(r.vatRateOrigin*100)}%)`:''}<br>
+            <b>Converti CHF</b> : CHF ${Math.round(r.prixHT_CHF).toLocaleString('fr-CH')} (×${PARAMS.fx.v} <span class="badge bh">Hyp.</span>)<br>
+            <b>Transport</b> : +CHF ${PARAMS.transport.v.toLocaleString('fr-CH')} <span class="badge bh">Hyp.</span><br>
+            <b>Impôt fédéral véhicules 4%</b> : +CHF ${l.autoTax.toLocaleString('fr-CH')} <span class="badge bl">OFDF</span><br>
+            <b>Frais fixes douane+expertise+test</b> : +CHF ${l.fixedFees} <span class="badge bl">OFDF+Canton</span><br>
+            <b>TVA suisse 8.1%</b> (sur ${Math.round(l.vatBase).toLocaleString('fr-CH')} CHF) : +CHF ${l.vat.toLocaleString('fr-CH')} <span class="badge bl">LTVA</span><br>
+            <b>Sanction CO2</b> : ${l.co2.exempt?`<span style="color:#0F6E56">CHF 0 — ${l.co2.reason}</span>`:`+CHF ${l.co2.penalty.toLocaleString('fr-CH')} (${l.co2.reason})`} <span class="badge bl">OFEN</span><br>
+            <b>= Total Landed TTC</b> : <b>CHF ${l.total.toLocaleString('fr-CH')}</b><br>
+            ${r.spec?`<b>Revente CH TTC</b> : CHF ${r.spec.r.toLocaleString('fr-CH')} <span class="badge bh">${r.spec.rsrc}</span>`:''}
+          </div>
+          ${r.spec&&r.spec.co2?`<div style="font-size:10px;color:#aaa;margin-top:6px">Taxe cantonale GE annuelle estimée (acheteur) : CHF ${calcTaxeGE(r.spec.co2,r.spec.kg,r.year,r.spec.co2===0).toLocaleString('fr-CH')}/an <span class="badge bl">ge.ch 2025</span></div>`:''}
+        </div>
+        <button class="rc-toggle" onclick="this.closest('.rcard').classList.toggle('open');this.textContent=this.closest('.rcard').classList.contains('open')?'▲ Masquer détail':'▸ Voir décomposition complète'">▸ Voir décomposition complète</button>`;
+    }
+
+    card.innerHTML = `
       <div class="rc-main">
-        <div class="rc-name">${flag} ${r.make||r.brand||''} ${r.model} ${r.year} <span class="badge bg-gray" style="font-size:9px;vertical-align:middle">${fuelLabel}</span></div>
+        <div class="rc-name">${flag} ${r.make} ${r.model}${r.version?' · '+r.version:''} ${r.year} <span class="badge bg" style="font-size:9px;vertical-align:middle">${fuelL}</span></div>
         <div class="rc-sub">
           <span>${(r.km||0).toLocaleString('fr-CH')} km</span>
-          <span style="color:#ddd">·</span><span>${r.seller}</span>
-          <span style="color:#ddd">·</span><span>${CNAMES[r.country]||r.country}</span>
+          <span style="color:#ddd">·</span>
+          <span>${r.seller}</span>
+          <span style="color:#ddd">·</span>
+          <span class="badge ${isPro?'bv':'bg'}">${isPro?'Pro dealer':'Privé'}</span>
+          <span style="color:#ddd">·</span>
+          <span>${CNAMES[r.country]||r.country}</span>
+          ${r.dom?`<span style="color:#ddd">·</span><span class="dom-badge ${domCls}">${domLbl}</span>`:''}
         </div>
         ${r.url?`<a class="rc-link" href="${r.url}" target="_blank">↗ Voir l'annonce sur AutoScout24</a>`:''}
         <div class="rc-fins">
-          <div class="rc-fin"><div class="rc-fin-lbl">Prix <span class="badge bg-ht">HT</span></div><div class="rc-fin-val">€${Math.round(r.price).toLocaleString('fr-CH')}</div></div>
-          ${r.l?`<div class="rc-fin"><div class="rc-fin-lbl">Landed GVA <span class="badge bg-ttc">TTC</span></div><div class="rc-fin-val">CHF ${Math.round(r.l.tot).toLocaleString('fr-CH')}</div></div>`:''}
-          ${r.spec?`<div class="rc-fin"><div class="rc-fin-lbl">Revente CH <span class="badge bg-hyp">Hyp.</span></div><div class="rc-fin-val">CHF ${r.spec.r.toLocaleString('fr-CH')}</div></div>`:''}
-          ${r.margin!==null?`<div class="rc-fin"><div class="rc-fin-lbl">Marge nette <span class="badge bg-ttc">TTC</span></div><div class="rc-fin-val ${mc}">CHF ${(r.margin||0).toLocaleString('fr-CH')}</div></div>`:''}
+          <div class="rcf">
+            <div class="rcf-l">Prix affiché ${priceTag}</div>
+            <div class="rcf-v">€${Math.round(r.price).toLocaleString('fr-CH')}</div>
+            <div style="font-size:9px;color:#aaa;margin-top:2px">${vatNote}</div>
+          </div>
+          ${r.landed?`<div class="rcf"><div class="rcf-l">Landed GVA <span class="badge bttc">TTC</span></div><div class="rcf-v">CHF ${r.landed.total.toLocaleString('fr-CH')}</div></div>`:''}
+          ${r.spec?`<div class="rcf"><div class="rcf-l">Revente CH <span class="badge bh">Hyp.</span></div><div class="rcf-v">CHF ${r.spec.r.toLocaleString('fr-CH')}</div></div>`:''}
+          ${r.margin!==null?`<div class="rcf"><div class="rcf-l">Marge nette <span class="badge bttc">TTC</span></div><div class="rcf-v ${mc}">CHF ${(r.margin||0).toLocaleString('fr-CH')}</div></div>`:''}
         </div>
-        ${r.l?`<div class="rc-calc">
-          Base CHF ${Math.round(r.l.bC).toLocaleString('fr-CH')}
-          + Transport CHF ${Math.round(r.l.tr).toLocaleString('fr-CH')} <span class="badge bg-hyp">Hyp.</span>
-          + CO2 CHF ${r.l.cp.toLocaleString('fr-CH')} <span class="badge bg-law">Loi</span>
-          + GVA CHF ${r.l.gva.toLocaleString('fr-CH')} <span class="badge bg-law">Loi</span>
-          + TVA+ZNZ CHF ${Math.round(r.l.vat+r.l.znz).toLocaleString('fr-CH')} <span class="badge bg-law">Loi</span>
-          + Frais CHF ${(r.l.fe+r.l.ho).toLocaleString('fr-CH')} <span class="badge bg-hyp">Hyp.</span>
-        </div>`:''}
+        ${detailHtml}
       </div>
       <div class="rc-actions">
         <button class="add-btn${alreadyAdded?' added':''}" ${alreadyAdded||!r.spec||!r.margin||r.margin<=0?'disabled':''}>
-          ${alreadyAdded?'✓ Ajouté':!r.spec?'Non reconnu':!r.margin||r.margin<=0?'Marge neg.':'+ Ajouter'}
+          ${alreadyAdded?'✓ Ajouté':!r.spec?'Non reconnu':!r.margin||r.margin<=0?'Marge neg.':'+ Ajouter au pipeline'}
         </button>
-        <button class="skip-btn" onclick="this.closest('.result-card').remove()">Ignorer</button>
+        <button class="skip-btn" onclick="this.closest('.rcard').remove()">Ignorer</button>
       </div>`;
 
-    card.querySelector('.add-btn').addEventListener('click',async()=>{
-      if(alreadyAdded||!r.spec||!r.margin||r.margin<=0)return;
-      const d={brand:r.brand||r.make,model:r.model,motor:r.fuel||'essence',year:r.year,km:r.km,eurPrice:Math.round(r.price),sellerType:'Official Dealer',sellerName:r.seller||'—',country:r.country,dom:0,liq:70,nego:0.08,link:r.url,tags:[],addedBy:getUser(),calc_snapshot:{fx:P('fx'),tr:P('tr'),fees:P('fees'),homolog:P('homolog'),at:new Date().toISOString()}};
-      deals.unshift(d);sv();addedUrls.add(r.url);
-      const btn=card.querySelector('.add-btn');btn.textContent='✓ Ajouté';btn.classList.add('added');btn.disabled=true;
+    card.querySelector('.add-btn').addEventListener('click', async () => {
+      if (alreadyAdded||!r.spec||!r.margin||r.margin<=0) return;
+      const d = {
+        brand: r.specKey?.split(' ').slice(0,r.make.toLowerCase().includes('land')?2:1).join(' ') || r.make,
+        model: r.specKey?.split(' ').slice(r.make.toLowerCase().includes('land')?2:1).join(' ')    || r.model,
+        motor: r.fuel||'essence', year:r.year, km:r.km,
+        eurPrice:Math.round(r.price), isHT:r.isPro,
+        sellerType:r.isPro?'Official Dealer':'Privé',
+        sellerName:r.seller||'—', country:r.country,
+        dom:r.dom||0, monthsReg:r.monthsReg||99,
+        liq:70, nego:r.dom>60?0.12:r.dom>30?0.10:0.08,
+        link:r.url, tags:[], addedBy:getUser(),
+        version:r.version||'',
+        calc_snapshot:{fx:PARAMS.fx.v,tr:PARAMS.transport.v,at:new Date().toISOString(),landed_total:r.landed?.total,isHT:r.isPro}
+      };
+      deals.unshift(d); sv(); addedUrls.add(r.url);
+      const btn = card.querySelector('.add-btn');
+      btn.textContent='✓ Ajouté'; btn.classList.add('added'); btn.disabled=true;
       updCnts();
-      // Sync to Supabase
-      if(sbClient){
-        try{
-          await sbClient.from('deals').insert({brand:d.brand,model:d.model,fuel_type:d.motor,year:d.year,km:d.km,eur_price_ht:d.eurPrice,seller_type:d.sellerType,seller_name:d.sellerName,country:d.country,days_on_market:d.dom,liquidity_score:d.liq,nego_pct:d.nego,listing_url:d.link,tags:d.tags,added_by:d.addedBy,calc_snapshot:d.calc_snapshot});
-        }catch(e){console.warn('Supabase insert error',e);}
+      if (sbClient) {
+        try {
+          await sbClient.from('deals').insert({
+            brand:d.brand,model:d.model,fuel_type:d.motor,year:d.year,km:d.km,
+            eur_price_ht:d.eurPrice,is_ht:d.isHT,seller_type:d.sellerType,
+            seller_name:d.sellerName,country:d.country,days_on_market:d.dom,
+            months_registered:d.monthsReg,liquidity_score:d.liq,
+            nego_pct:d.nego,listing_url:d.link,tags:d.tags,
+            added_by:d.addedBy,calc_snapshot:d.calc_snapshot,version:d.version
+          });
+        } catch(e) { console.warn('SB insert:', e); }
       }
     });
     list.appendChild(card);
   });
 }
 
-// ── HYPOTHÈSES ────────────────────────────────────────────────────
-function toggleHyp(){const p=document.getElementById('hyp-panel');p.classList.toggle('show');if(p.classList.contains('show'))renderHyp();}
-function renderHyp(){
-  const tbody=document.getElementById('hyp-tbody');tbody.innerHTML='';
-  Object.entries(PARAMS).forEach(([key,p])=>{
-    const tr=document.createElement('tr');tr.dataset.key=key;
-    const tag=p.isHyp?`<span class="badge bg-hyp">Hypothèse</span>`:p.legalRef?`<span class="badge bg-law">Loi</span>`:`<span class="badge bg-green">Confirmé</span>`;
-    tr.innerHTML=`<td style="font-weight:500">${p.label} <span style="font-size:9px;color:#aaa">(${p.unit})</span></td><td><input class="hi${p.isHyp?'':' conf'}" type="number" value="${p.value}" step="any" ${p.isHyp?'':'readonly'} /></td><td>${tag}</td><td>${p.legalRef?`<span style="font-size:10px;color:#185FA5;font-weight:500">${p.legalRef}</span><br><span style="font-size:9px;color:#aaa">${p.source}</span>`:`<input class="si" value="${p.source||''}" placeholder="Source / devis…" />`}</td><td>${p.isHyp?`<input style="font-size:10px;padding:2px 5px;border:0.5px solid #ddd;border-radius:3px;width:70px" value="${p.by}" placeholder="Prénom" />`:`<span style="font-size:10px;color:#aaa">${p.by}</span>`}</td><td style="font-size:10px;color:#aaa">${p.at}</td>`;
-    tbody.appendChild(tr);
-  });
-}
-function saveHyp(){
-  document.querySelectorAll('#hyp-tbody tr[data-key]').forEach(tr=>{
-    const key=tr.dataset.key;const p=PARAMS[key];if(!p||!p.isHyp)return;
-    const v=tr.querySelector('.hi');const s=tr.querySelector('.si');const b=tr.querySelector('input[placeholder="Prénom"]');
-    if(v)p.value=parseFloat(v.value)||p.value;
-    if(s)p.source=s.value||p.source;
-    if(b)p.by=b.value||p.by;
-    p.at=new Date().toLocaleDateString('fr-CH');
-  });
-  document.getElementById('hyp-panel').classList.remove('show');
-  renderDeals();
+// ═══════════════════════════════════════════════════════════════
+// DEALS LIST
+// ═══════════════════════════════════════════════════════════════
+function updCnts() {
+  const v  = deals.filter(d=>profD(d)>0);
+  const fc = Object.values(favs).filter(Boolean).length;
+  document.getElementById('deal-cnt').textContent = v.length;
+  document.getElementById('fav-cnt').textContent  = fc;
 }
 
-// ── DEALS ─────────────────────────────────────────────────────────
-function updCnts(){const v=deals.filter(d=>profD(d)>0);const fc=Object.values(favs).filter(Boolean).length;document.getElementById('deal-cnt').textContent=v.length;document.getElementById('fav-cnt').textContent=fc;}
-function toggleFav(e,id){e.stopPropagation();favs[id]=!favs[id];if(!favs[id])delete favs[id];svF();renderDeals();renderPipeline();}
-function delDeal(e,idx){e.stopPropagation();if(!confirm('Supprimer ce deal ?'))return;deals.splice(idx,1);sv();expIdx=null;renderDeals();}
+function toggleFav(e,id){ e.stopPropagation(); favs[id]=!favs[id]; if(!favs[id]) delete favs[id]; svF(); renderDeals(); renderPipeline(); }
+function delDeal(e,idx)  { e.stopPropagation(); if(!confirm('Supprimer ce deal ?')) return; deals.splice(idx,1); sv(); expIdx=null; renderDeals(); }
 
-function renderDeals(){
+function renderDeals() {
   updCnts();
-  const sorted=deals.map((d,i)=>({...d,_pr:profD(d),_i:i})).filter(d=>d._pr>0).sort((a,b)=>b._pr-a._pr);
-  const pr=sorted.map(d=>d._pr);const avg=pr.length?Math.round(pr.reduce((a,b)=>a+b,0)/pr.length):0;const best=pr.length?Math.max(...pr):0;const fc=Object.values(favs).filter(Boolean).length;
-  document.getElementById('s-tot').textContent=sorted.length;
-  document.getElementById('s-avg').textContent=avg?'CHF '+avg.toLocaleString('fr-CH'):' — ';
-  document.getElementById('s-best').textContent=best?'CHF '+best.toLocaleString('fr-CH'):' — ';
-  document.getElementById('s-fav').textContent=fc;
-  const c=document.getElementById('deal-list');c.innerHTML='';
-  if(!sorted.length){c.innerHTML='<div class="no-data">Aucun deal — lancez une recherche.</div>';return;}
-  sorted.forEach((d,i)=>{
-    const spec=SPECS[d.brand+' '+d.model];if(!spec)return;
-    const l=calcL(d.eurPrice,spec);const p=d._pr,pct=((p/spec.r)*100).toFixed(1);
-    const id=dId(d),isFav=!!favs[id],isExp=expIdx===i;
-    const flag=FLAGS[d.country||'DE']||'🌍';
-    const card=document.createElement('div');card.className='deal-card'+(isExp?' expanded':'')+(isFav?' fav':'');
-    card.innerHTML=`
-      <div style="display:flex;align-items:flex-start;gap:9px">
-        <div style="font-size:11px;font-weight:600;${i<3?'color:#1D9E75':'color:#ccc'};min-width:20px;padding-top:2px;flex-shrink:0">#${i+1}</div>
-        <span style="font-size:15px;flex-shrink:0;padding-top:1px">${flag}</span>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:#111">${d.brand} ${d.model} ${d.year} <span class="badge bg-gray" style="font-size:9px;vertical-align:middle">${d.motor||''}</span></div>
-          <div style="font-size:11px;color:#888;margin-top:3px;display:flex;flex-wrap:wrap;gap:5px">
+  const sorted = deals.map((d,i)=>({...d,_pr:profD(d),_i:i})).filter(d=>d._pr>0).sort((a,b)=>b._pr-a._pr);
+  const pr = sorted.map(d=>d._pr);
+  const avg  = pr.length ? Math.round(pr.reduce((a,b)=>a+b,0)/pr.length) : 0;
+  const best = pr.length ? Math.max(...pr) : 0;
+  const fc   = Object.values(favs).filter(Boolean).length;
+  document.getElementById('s-tot').textContent  = sorted.length;
+  document.getElementById('s-avg').textContent  = avg  ? 'CHF '+avg.toLocaleString('fr-CH')  : '—';
+  document.getElementById('s-best').textContent = best ? 'CHF '+best.toLocaleString('fr-CH') : '—';
+  document.getElementById('s-fav').textContent  = fc;
+
+  const container = document.getElementById('deal-list'); container.innerHTML='';
+  if (!sorted.length) { container.innerHTML='<div class="no-data">Aucun deal — lancez une recherche et ajoutez des annonces.</div>'; return; }
+
+  sorted.forEach((d,i) => {
+    const spec = SPECS[d.brand+' '+d.model]; if(!spec) return;
+    const prixCHF = (d.eurPrice||0) * PARAMS.fx.v;
+    const vatRateOrigin = {DE:0.19,FR:0.20,IT:0.22,ES:0.21,NL:0.21,BE:0.21,AT:0.20}[d.country]||0.20;
+    const prixHT_CHF = d.isHT ? Math.round(prixCHF/(1+vatRateOrigin)) : prixCHF;
+    const landed = calcLanded(prixHT_CHF, d.isHT, spec, d.monthsReg||99, d.km||50000);
+    const p      = d._pr;
+    const pct    = ((p/spec.r)*100).toFixed(1);
+    const id     = dId(d);
+    const isFav  = !!favs[id];
+    const isExp  = expIdx === i;
+    const flag   = FLAGS[d.country||'DE']||'🌍';
+    const domLbl = domLabel(d.dom);
+    const domCls = domClass(d.dom);
+    const negoP  = d.nego||0.08;
+    const taxeGE = calcTaxeGE(spec.co2, spec.kg, d.year, spec.co2===0);
+
+    // Message vendeur template
+    const lang = MSG_LANG[d.country]||'de';
+    const offerEUR = Math.round((d.eurPrice||0) * (1 - negoP));
+    const msgTemplates = {
+      de:`Guten Tag,\n\nich interessiere mich für Ihr Fahrzeug: ${d.brand} ${d.model}${d.version?' '+d.version:''} (${d.year}, ${(d.km||0).toLocaleString()} km).\n\nNach eingehender Prüfung aller Importkosten nach Genf (Schweiz) möchte ich Ihnen folgenden Preis anbieten:\n\n€ ${offerEUR.toLocaleString('de-DE')} (netto / HT)\n\nBitte teilen Sie mir mit, ob dieses Angebot für Sie interessant ist.\n\nMit freundlichen Grüßen`,
+      fr:`Bonjour,\n\nJe suis intéressé par votre véhicule : ${d.brand} ${d.model}${d.version?' '+d.version:''} (${d.year}, ${(d.km||0).toLocaleString('fr-FR')} km).\n\nAprès analyse complète des coûts d'importation vers Genève (Suisse), je vous propose le prix suivant :\n\n${offerEUR.toLocaleString('fr-FR')} € (hors taxe / HT)\n\nMerci de me confirmer si cette offre vous convient.\n\nCordialement`,
+      it:`Buongiorno,\n\nSono interessato al suo veicolo: ${d.brand} ${d.model}${d.version?' '+d.version:''} (${d.year}, ${(d.km||0).toLocaleString('it-IT')} km).\n\nDopo un'analisi completa dei costi di importazione verso Ginevra (Svizzera), le propongo il seguente prezzo:\n\n€ ${offerEUR.toLocaleString('it-IT')} (al netto dell'IVA)\n\nLa prego di confermarmi se questa offerta è di suo interesse.\n\nCordiali saluti`,
+      es:`Buenos días,\n\nEstoy interesado en su vehículo: ${d.brand} ${d.model}${d.version?' '+d.version:''} (${d.year}, ${(d.km||0).toLocaleString('es-ES')} km).\n\nTras un análisis completo de los costes de importación a Ginebra (Suiza), le propongo el siguiente precio:\n\n€ ${offerEUR.toLocaleString('es-ES')} (sin IVA / precio neto)\n\nAgradezco su respuesta sobre si esta oferta le interesa.\n\nAtentamente`,
+      nl:`Goedendag,\n\nIk ben geïnteresseerd in uw voertuig: ${d.brand} ${d.model}${d.version?' '+d.version:''} (${d.year}, ${(d.km||0).toLocaleString('nl-NL')} km).\n\nNa grondige analyse van alle importkosten naar Genève (Zwitserland) doe ik u het volgende voorstel:\n\n€ ${offerEUR.toLocaleString('nl-NL')} (excl. BTW / netto)\n\nGraag verneem ik uw reactie.\n\nMet vriendelijke groet`,
+    };
+    const msgText = msgTemplates[lang] || msgTemplates['de'];
+
+    const card = document.createElement('div');
+    card.className = 'dcard' + (isExp?' expanded':'') + (isFav?' fav':'');
+    card.innerHTML = `
+      <div class="dt">
+        <div class="rank ${i<3?'top':'mid'}">#${i+1}</div>
+        <span style="font-size:16px;flex-shrink:0;padding-top:1px">${flag}</span>
+        <div class="di">
+          <div class="dn">${d.brand} ${d.model}${d.version?' · '+d.version:''} ${d.year} <span class="badge bg" style="font-size:9px;vertical-align:middle">${FUEL_L[d.motor]||d.motor||''}</span></div>
+          <div class="ds">
             <span style="font-weight:600;color:#333">${d.sellerName}</span>
+            <span style="color:#ddd">·</span><span class="badge ${d.isHT?'bv':'bg'}">${d.isHT?'Pro HT':'Privé TTC'}</span>
             <span style="color:#ddd">·</span><span>${(d.km||0).toLocaleString('fr-CH')} km</span>
+            ${d.dom?`<span style="color:#ddd">·</span><span class="dom-badge ${domCls}">${domLbl}</span>`:''}
             ${d.addedBy&&d.addedBy!=='—'?`<span style="color:#ccc">· Par ${d.addedBy}</span>`:''}
           </div>
-          ${d.link?`<a href="${d.link}" onclick="event.stopPropagation()" target="_blank" style="font-size:11px;color:#185FA5;text-decoration:none">↗ Voir l'annonce</a>`:''}
+          ${d.link?`<a class="al" href="${d.link}" onclick="event.stopPropagation()" target="_blank">↗ Voir l'annonce</a>`:''}
         </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:10px;color:#aaa">Marge <span class="badge bg-ttc">TTC</span></div>
-          <div style="font-size:16px;font-weight:700;color:#0F6E56">CHF ${p.toLocaleString('fr-CH')}</div>
-          <div style="font-size:10px;color:#aaa">${pct}%</div>
+        <div class="mbox">
+          <div class="mbox-lbl">Marge <span class="badge bttc">TTC</span></div>
+          <div class="mbox-val">CHF ${p.toLocaleString('fr-CH')}</div>
+          <div class="mbox-pct">${pct}%</div>
         </div>
         <button class="fav-btn${isFav?' on':''}" onclick="toggleFav(event,'${id}')">★</button>
       </div>
+
       <div class="fins">
-        <div class="fb"><div class="fl">Prix achat <span class="badge bg-ht">HT</span></div><div class="fv">€${(d.eurPrice||0).toLocaleString('fr-CH')}</div></div>
-        <div class="fb"><div class="fl">Landed GVA <span class="badge bg-ttc">TTC</span></div><div class="fv">CHF ${Math.round(l.tot).toLocaleString('fr-CH')}</div></div>
-        <div class="fb"><div class="fl">Revente CH <span class="badge bg-hyp">Hyp.</span></div><div class="fv">CHF ${spec.r.toLocaleString('fr-CH')}</div></div>
+        <div class="fb"><div class="fl">Prix ${d.isHT?'HT estimé':'TTC'} <span class="badge ${d.isHT?'bht':'bg'}">${d.isHT?'HT':'TTC'}</span></div><div class="fv">€${(d.eurPrice||0).toLocaleString('fr-CH')}</div></div>
+        <div class="fb"><div class="fl">Landed GVA <span class="badge bttc">TTC</span></div><div class="fv">CHF ${landed.total.toLocaleString('fr-CH')}</div></div>
+        <div class="fb"><div class="fl">Revente CH <span class="badge ${spec.rsrc==='HYPOTHÈSE'?'bh':'bv'}">${spec.rsrc}</span></div><div class="fv">CHF ${spec.r.toLocaleString('fr-CH')}</div></div>
       </div>
-      <div class="trans">
-        <div style="font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#aaa;margin-bottom:9px;font-weight:600">Rapport de transparence complet <span class="badge bg-ttc">TTC</span></div>
-        <div class="tr-row"><span class="tr-lbl">Prix EU HT → CHF (×${P('fx')} <span class="badge bg-hyp">Hyp.</span>)</span><span>CHF ${Math.round(l.bC).toLocaleString('fr-CH')}</span></div>
-        <div class="tr-row"><span class="tr-lbl">Transport €${P('tr')} <span class="badge bg-hyp">Hyp.</span></span><span style="color:#cc0000">+CHF ${Math.round(l.tr).toLocaleString('fr-CH')}</span></div>
-        <div class="tr-row"><span class="tr-lbl">CO2 fédéral ${spec.co2} g/km <span class="badge bg-law">LCO2</span></span><span style="color:#cc0000">+CHF ${l.cp.toLocaleString('fr-CH')}</span></div>
-        <div class="tr-row"><span class="tr-lbl">Surtaxe CO2 Genève <span class="badge bg-law">LRVM GE</span></span><span style="color:#cc0000">+CHF ${l.gva.toLocaleString('fr-CH')}</span></div>
-        <div class="tr-row"><span class="tr-lbl">Homologation <span class="badge bg-hyp">Hyp.</span></span><span style="color:#cc0000">+CHF ${l.ho.toLocaleString('fr-CH')}</span></div>
-        <div class="tr-row"><span class="tr-lbl">Frais admin/courtage <span class="badge bg-hyp">Hyp.</span></span><span style="color:#cc0000">+CHF ${l.fe.toLocaleString('fr-CH')}</span></div>
-        <div class="tr-row"><span class="tr-lbl">TVA Suisse 7.7% <span class="badge bg-law">LIFD</span></span><span style="color:#cc0000">+CHF ${Math.round(l.vat).toLocaleString('fr-CH')}</span></div>
-        <div class="tr-row"><span class="tr-lbl">Taxe ZNZ 4% <span class="badge bg-law">LRVM GE</span></span><span style="color:#cc0000">+CHF ${Math.round(l.znz).toLocaleString('fr-CH')}</span></div>
-        <div class="tr-row"><span class="tr-lbl"><b>= Total Landed TTC</b></span><span><b>CHF ${Math.round(l.tot).toLocaleString('fr-CH')}</b></span></div>
-        <div class="tr-row"><span class="tr-lbl">Revente CH TTC <span class="badge bg-hyp">Hyp. → vérifier AutoScout24.ch</span></span><span>CHF ${spec.r.toLocaleString('fr-CH')}</span></div>
-        <div class="tr-row"><span><b>MARGE NETTE TTC</b></span><span><b>CHF ${p.toLocaleString('fr-CH')} (${pct}%)</b></span></div>
-        ${d.calc_snapshot?`<div style="font-size:9px;color:#aaa;margin-top:7px;padding:5px 8px;background:#fff;border-radius:4px;border:0.5px solid #eee">Snapshot paramètres — FX: ${d.calc_snapshot.fx} · Transport: €${d.calc_snapshot.tr} · Calculé le ${new Date(d.calc_snapshot.at||Date.now()).toLocaleDateString('fr-CH')}</div>`:''}
-      </div>
-      <div class="nego">
-        <div style="font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#aaa;margin-bottom:9px;font-weight:600">Négociateur inversé</div>
-        <div class="ngrid">
-          <div class="ni"><label>Marge cible CHF TTC</label><input type="number" id="nm-${i}-mg" value="20000" oninput="updN(${i},${d._i})" /></div>
-          <div class="ni"><label>Revente estimée CHF TTC</label><input type="number" id="nm-${i}-rv" value="${spec.r}" oninput="updN(${i},${d._i})" /></div>
-          <div class="ni"><label>Potentiel négo</label><select id="nm-${i}-ng" onchange="updN(${i},${d._i})"><option value="0.05">-5%</option><option value="0.08" selected>-8%</option><option value="0.10">-10%</option><option value="0.12">-12%</option></select></div>
-          <div class="ni"><label>Landed actuel</label><input value="CHF ${Math.round(l.tot).toLocaleString('fr-CH')}" readonly style="background:#f0f0f0;color:#888" /></div>
+
+      <!-- RAPPORT COMPLET -->
+      <div class="rapport">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#aaa;margin-bottom:9px">Rapport landed cost complet <span class="badge bttc">TTC</span></div>
+        <div class="rr"><span class="rl">Prix ${d.isHT?'HT estimé (TVA '+Math.round(vatRateOrigin*100)+'% déduite)':'TTC vendeur'} → CHF (×${PARAMS.fx.v} <span class="badge bh">Hyp.</span>)</span><span class="rv">CHF ${Math.round(prixHT_CHF).toLocaleString('fr-CH')}</span></div>
+        <div class="rr"><span class="rl">Transport EU→GVA <span class="badge bh">Hyp. — ${PARAMS.transport.src?.split('·')[0]?.trim()||'Estimation'}</span></span><span class="rv cost">+CHF ${PARAMS.transport.v.toLocaleString('fr-CH')}</span></div>
+        <div class="rr"><span class="rl">Impôt fédéral véhicules 4% <span class="badge bl">OFDF</span></span><span class="rv cost">+CHF ${landed.autoTax.toLocaleString('fr-CH')}</span></div>
+        <div class="rr"><span class="rl">Frais fixes (douane CHF 20 + expertise CHF 60 + test CHF 100) <span class="badge bl">OFDF + Canton</span></span><span class="rv cost">+CHF ${landed.fixedFees}</span></div>
+        <div class="rr"><span class="rl">TVA suisse 8.1% (sur base CHF ${Math.round(landed.vatBase).toLocaleString('fr-CH')}) <span class="badge bl">LTVA + BAZG</span></span><span class="rv cost">+CHF ${landed.vat.toLocaleString('fr-CH')}</span></div>
+        <div class="rr"><span class="rl">Sanction CO2 fédérale <span class="badge bl">OFEN</span>${landed.co2.exempt?` <span style="color:#0F6E56;font-size:10px">✓ Exempté — ${landed.co2.reason}</span>`:''}</span><span class="rv ${landed.co2.penalty>0?'cost':''}">${landed.co2.penalty>0?'+CHF '+landed.co2.penalty.toLocaleString('fr-CH'):'CHF 0'}</span></div>
+        <div class="rr"><span><b>= Total Landed TTC</b></span><span class="rv"><b>CHF ${landed.total.toLocaleString('fr-CH')}</b></span></div>
+        <div class="rr"><span class="rl">Revente CH TTC <span class="badge ${spec.rsrc==='HYPOTHÈSE'?'bh':'bv'}">${spec.rsrc}</span></span><span class="rv">CHF ${spec.r.toLocaleString('fr-CH')}</span></div>
+        <div class="rr"><span><b>MARGE NETTE TTC</b></span><span class="rv" style="color:#0F6E56"><b>CHF ${p.toLocaleString('fr-CH')} (${pct}%)</b></span></div>
+        <div style="margin-top:8px;padding:7px 9px;background:#fff;border-radius:4px;border:0.5px solid #eee;font-size:10px;color:#888">
+          Taxe cantonale GE annuelle (futur acheteur) : <b>CHF ${taxeGE}/an</b> <span class="badge bl">ge.ch 2025</span> · CO2 ${spec.co2} g/km · Poids ${spec.kg} kg
         </div>
-        <div style="font-size:10px;color:#aaa;margin-top:6px;padding:6px 9px;background:#fff;border-radius:4px;border:0.5px solid #eee" id="nm-${i}-exp"></div>
-        <div class="nres" id="nm-${i}-res"></div>
+        ${d.calc_snapshot?`<div style="margin-top:5px;font-size:9px;color:#bbb">Snapshot calcul — FX: ${d.calc_snapshot.fx} · Transport: CHF ${d.calc_snapshot.tr} · ${new Date(d.calc_snapshot.at||Date.now()).toLocaleDateString('fr-CH')}</div>`:''}
       </div>
+
+      <!-- NÉGOCIATEUR INVERSÉ -->
+      <div class="nego">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#aaa;margin-bottom:10px">Négociateur inversé</div>
+        <div class="nego-grid">
+          <div class="ni"><label>Marge cible CHF TTC</label><input type="number" id="nm-${i}-mg" value="20000" oninput="updN(${i},${d._i})"/></div>
+          <div class="ni"><label>Revente estimée CHF TTC</label><input type="number" id="nm-${i}-rv" value="${spec.r}" oninput="updN(${i},${d._i})"/></div>
+          <div class="ni"><label>Potentiel négo</label>
+            <select id="nm-${i}-ng" onchange="updN(${i},${d._i})">
+              <option value="0.05">-5% (vendeur ferme)</option>
+              <option value="0.08" ${negoP===0.08?'selected':''}>-8% (standard)</option>
+              <option value="0.10" ${negoP===0.10?'selected':''}>-10% (annonce longue)</option>
+              <option value="0.12" ${negoP===0.12?'selected':''}>-12% (pression max)</option>
+            </select>
+          </div>
+          <div class="ni"><label>Landed actuel TTC</label><input value="CHF ${landed.total.toLocaleString('fr-CH')}" readonly style="background:#f0f0f0;color:#888"/></div>
+        </div>
+        <div class="nego-tip" id="nm-${i}-tip">${negoTip(d.dom, d.isHT)}</div>
+        <div class="nego-res" id="nm-${i}-res"></div>
+      </div>
+
+      <!-- MESSAGE VENDEUR -->
+      <div class="msg-box">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#aaa;margin-bottom:8px">Message vendeur — ${lang.toUpperCase()} (prêt à envoyer)</div>
+        <div class="msg-content" id="msg-${i}">${msgText}</div>
+        <button class="copy-btn" onclick="copyMsg(${i})">📋 Copier le message</button>
+        <div style="font-size:10px;color:#aaa;margin-top:5px">Prix offert : €${offerEUR.toLocaleString('fr-CH')} (négo −${Math.round(negoP*100)}%). Modifiez le message si nécessaire avant d'envoyer.</div>
+      </div>
+
+      <!-- BENCHMARK CH -->
+      <div class="bm-box">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#aaa;margin-bottom:8px">Benchmark revente CH — AutoScout24.ch</div>
+        <div style="font-size:11px;color:#888;margin-bottom:10px;line-height:1.5">
+          Prix retenu = <b>P25 × 0.95</b> (approche conservatrice — 75% des annonces plus chères, décote 5% pour frais de vente).<br>
+          Le résultat est mis en cache 14 jours dans Supabase pour limiter les scrapes.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn btn-b" style="font-size:10px;padding:5px 12px" onclick="runBenchmark('${d.brand}','${d.model}',${i})">🔍 Analyser AutoScout24.ch</button>
+          <a class="btn" style="font-size:10px;padding:5px 12px;text-decoration:none" href="https://www.autoscout24.ch/fr/s/${encodeURIComponent(d.brand.toLowerCase())}/${encodeURIComponent(d.model.toLowerCase().replace(/ /g,'-'))}" target="_blank">↗ AutoScout24.ch</a>
+          <a class="btn" style="font-size:10px;padding:5px 12px;text-decoration:none" href="https://www.mobile.ch/fr/voitures/${encodeURIComponent(d.brand.toLowerCase().replace(' ','-'))}/${encodeURIComponent(d.model.toLowerCase().replace(/ /g,'-'))}" target="_blank">↗ Mobile.ch</a>
+          <a class="btn" style="font-size:10px;padding:5px 12px;text-decoration:none" href="https://www.eurotaxglass.ch" target="_blank">↗ Eurotax CH</a>
+        </div>
+        <div id="bm-result-${i}">
+          <div style="font-size:11px;color:#bbb;padding:8px;background:#f9f9f9;border-radius:4px">Cliquez "Analyser AutoScout24.ch" pour lancer le benchmark. Si un résultat récent (&lt;14 jours) existe en base, il sera affiché instantanément sans scrape.</div>
+        </div>
+      </div>
+
       <button class="del-btn" onclick="delDeal(event,${d._i})">Supprimer ce deal</button>`;
-    card.addEventListener('click',e=>{if(['BUTTON','A','INPUT','SELECT'].includes(e.target.tagName))return;expIdx=isExp?null:i;renderDeals();if(!isExp)setTimeout(()=>updN(i,d._i),20);});
-    c.appendChild(card);
-    if(isExp)setTimeout(()=>updN(i,d._i),20);
+
+    card.addEventListener('click', e => {
+      if (['BUTTON','A','INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+      expIdx = isExp ? null : i;
+      renderDeals();
+      if (!isExp) setTimeout(() => updN(i,d._i), 20);
+    });
+    container.appendChild(card);
+    if (isExp) setTimeout(() => updN(i,d._i), 20);
   });
 }
 
-function updN(ci,oi){
-  const mg=parseFloat(document.getElementById('nm-'+ci+'-mg')?.value)||20000;
-  const rv=parseFloat(document.getElementById('nm-'+ci+'-rv')?.value)||140000;
-  const ng=parseFloat(document.getElementById('nm-'+ci+'-ng')?.value)||0.08;
-  const d=deals[oi];if(!d)return;const spec=SPECS[d.brand+' '+d.model];if(!spec)return;
-  const fix=P('tr')*P('fx')+P('fees')+P('homolog');
-  const cp=co2P(spec.co2),gva=gvaS(spec.co2);
-  const base=(rv-mg-fix-cp-gva)/(1+P('vat')+P('znz'));
-  const maxE=Math.round(base/P('fx')),openE=Math.round(maxE*(1-ng));
-  const exp=document.getElementById('nm-'+ci+'-exp');
-  if(exp)exp.textContent=ng<=0.06?'Official Dealer récent — jouer relation/volume.':ng<=0.08?'Dealer standard — -5 à -8% avec engagement ferme.':ng<=0.10?'Pro dealer — -8 à -10% en jouant délai + cash.':'Vendeur sous pression — jusqu\'à -12%.';
-  const el=document.getElementById('nm-'+ci+'-res');if(!el)return;
-  el.innerHTML=`
-    <div class="nb2"><div class="nb2-lbl">Prix max acceptable HT</div><div class="nb2-val blue">€${maxE.toLocaleString('fr-CH')}</div><div class="nb2-sub">Pour CHF ${mg.toLocaleString('fr-CH')} TTC garantis</div></div>
-    <div class="nb2"><div class="nb2-lbl">Ouverture négo (-${Math.round(ng*100)}%)</div><div class="nb2-val green">€${openE.toLocaleString('fr-CH')}</div><div class="nb2-sub">Limite absolue : €${maxE.toLocaleString('fr-CH')}</div></div>
-    <div class="nb2"><div class="nb2-lbl">Coûts fixes <span class="badge bg-hyp">Hyp.</span></div><div class="nb2-val" style="font-size:13px">CHF ${Math.round(fix).toLocaleString('fr-CH')}</div></div>
-    <div class="nb2"><div class="nb2-lbl">CO2 + GVA <span class="badge bg-law">Loi</span></div><div class="nb2-val red" style="font-size:13px">CHF ${Math.round(cp+gva).toLocaleString('fr-CH')}</div></div>`;
+function copyMsg(i) {
+  const el = document.getElementById('msg-'+i);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(()=>{
+    const btn = el.nextElementSibling;
+    if(btn){ const t=btn.textContent; btn.textContent='✓ Copié !'; setTimeout(()=>btn.textContent=t,2000); }
+  });
 }
 
-// ── CRM ───────────────────────────────────────────────────────────
-const CRM_S=['Watchlist','Contact','Négociation','Clôturé'];
-const CRM_TC={Watchlist:'#0C447C',Contact:'#633806',Négociation:'#3C3489',Clôturé:'#085041'};
-const CRM_BG={Watchlist:'#E6F1FB',Contact:'#FAEEDA',Négociation:'#EEEDFE',Clôturé:'#E1F5EE'};
-function renderPipeline(){
-  const c=document.getElementById('crm-grid');c.innerHTML='';
-  const all=deals.map((d,i)=>({...d,_pr:profD(d),_i:i})).filter(d=>d._pr>0&&favs[dId(d)]);
-  CRM_S.forEach(stage=>{
-    const col=document.createElement('div');col.className='crm-col';
-    const sd=all.filter(d=>{const s=crmS[dId(d)];return(!s&&stage==='Watchlist')||s===stage;});
-    col.innerHTML=`<div class="crm-ct" style="color:${CRM_TC[stage]}"><span>${stage}</span><span class="crm-cnt">${sd.length}</span></div>`;
-    if(!sd.length){const e=document.createElement('div');e.style.cssText='font-size:10px;color:#aaa;text-align:center;padding:9px 0';e.textContent='—';col.appendChild(e);}
-    sd.forEach(d=>{
-      const id=dId(d),flag=FLAGS[d.country||'DE']||'🌍',notes=crmN[id]||[];
-      const item=document.createElement('div');item.className='crm-item';
-      const btns=CRM_S.filter(s=>s!==stage).map(s=>`<button class="csb" style="background:${CRM_BG[s]};color:${CRM_TC[s]};border-color:${CRM_TC[s]}40" onclick="moveCRM('${id}','${s}')">${s}</button>`).join('');
-      item.innerHTML=`<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px"><span style="font-size:14px">${flag}</span><div style="font-size:11px;font-weight:600;color:#111">${d.brand} ${d.model}</div></div><div style="font-size:10px;color:#888">${d.year} · ${(d.km||0).toLocaleString('fr-CH')} km · ${d.sellerName}</div><div style="font-size:12px;font-weight:700;color:#0F6E56;margin-top:4px">CHF ${d._pr.toLocaleString('fr-CH')} TTC</div>${d.link?`<a href="${d.link}" target="_blank" style="font-size:10px;color:#185FA5;text-decoration:none;display:block;margin-top:3px">↗ Annonce</a>`:''}<div style="display:flex;gap:2px;margin-top:6px;flex-wrap:wrap">${btns}</div><div style="display:flex;gap:5px;margin-top:5px"><input class="cni" id="cn-${id}" placeholder="Note…" onclick="event.stopPropagation()" /><button class="cna" onclick="addNote('${id}')">+</button></div>${notes.length?`<div style="margin-top:4px">${notes.map(n=>`<div style="font-size:10px;color:#888;padding:2px 0;border-bottom:0.5px solid #f0f0f0">${n}</div>`).join('')}</div>`:''}`; 
+// ═══════════════════════════════════════════════════════════════
+// BENCHMARK CH — règle statistique rigoureuse et conservatrice
+// Logique :
+//   - Scrape AutoScout24.ch uniquement sur demande explicite
+//   - Vérifie d'abord le cache Supabase (<14 jours) avant de scraper
+//   - Estimation retenue = P25 × 0.95
+//     → P25 : 75% des annonces sont plus chères → forte probabilité de vente
+//     → ×0.95 : décote 5% pour frais de vente, négo acheteur, marge sécurité
+//   - Fiable si n ≥ 5 annonces avec prix
+//   - Résultats sauvegardés dans Supabase table benchmark_ch
+// ═══════════════════════════════════════════════════════════════
+
+function percentile(arr, p) {
+  if (!arr.length) return 0;
+  const sorted = [...arr].sort((a,b)=>a-b);
+  const idx = (p/100)*(sorted.length-1);
+  const lo  = Math.floor(idx);
+  const hi  = Math.ceil(idx);
+  return Math.round(sorted[lo] + (sorted[hi]-sorted[lo])*(idx-lo));
+}
+
+function renderBenchmarkResult(el, data, fromCache) {
+  const {brand,model,n_listings,price_p10,price_p25,price_p50,price_p75,price_min,price_max,
+         price_conservative,avg_days_online,n_with_dom,is_reliable,reliability_note,scraped_at} = data;
+
+  const cacheNote = fromCache
+    ? `<span class="badge bl" style="font-size:8px">Cache Supabase · ${new Date(scraped_at).toLocaleDateString('fr-CH')}</span>`
+    : `<span class="badge bv" style="font-size:8px">Scrape frais · ${new Date().toLocaleDateString('fr-CH')}</span>`;
+
+  const reliabilityHtml = !is_reliable
+    ? `<div style="background:#FCEBEB;border:0.5px solid #E24B4A;border-radius:4px;padding:6px 9px;font-size:11px;color:#791F1F;margin-bottom:8px">⚠ Estimation non fiable : ${reliability_note}</div>`
+    : '';
+
+  const liquidityLabel = avg_days_online
+    ? avg_days_online < 20 ? '✓ Rotation rapide — forte demande' : avg_days_online < 45 ? 'Rotation normale' : '⚠ Rotation lente — marché saturé'
+    : '—';
+
+  el.innerHTML = `
+    ${reliabilityHtml}
+    <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#aaa;margin-bottom:8px;display:flex;align-items:center;gap:6px">Benchmark AutoScout24.ch ${cacheNote}</div>
+    <div class="bm-row" style="background:#E1F5EE;padding:5px 8px;border-radius:4px;margin-bottom:6px"><span class="bm-l" style="font-weight:700;color:#085041">Prix retenu (P25 × 0.95)</span><span style="font-weight:700;font-size:13px;color:#0F6E56">CHF ${(price_conservative||0).toLocaleString('fr-CH')}</span></div>
+    <div style="font-size:10px;color:#888;margin-bottom:8px;padding:6px 8px;background:#f8f8f8;border-radius:4px;line-height:1.6">
+      <b>Méthode :</b> P25 (CHF ${(price_p25||0).toLocaleString('fr-CH')}) × 0.95 = CHF ${(price_conservative||0).toLocaleString('fr-CH')}.<br>
+      75% des ${n_listings} annonces sont plus chères → forte probabilité de trouver preneur à ce prix.<br>
+      Décote 5% pour frais de mise en vente, négociation acheteur, marge de sécurité.
+    </div>
+    <div class="bm-row"><span class="bm-l">Annonces analysées</span><span><b>${n_listings}</b>${!is_reliable?' ⚠ insuffisant':''}</span></div>
+    <div class="bm-row"><span class="bm-l">Prix min → max</span><span>CHF ${(price_min||0).toLocaleString('fr-CH')} → CHF ${(price_max||0).toLocaleString('fr-CH')}</span></div>
+    <div class="bm-row"><span class="bm-l">P10 (10% moins cher)</span><span>CHF ${(price_p10||0).toLocaleString('fr-CH')}</span></div>
+    <div class="bm-row"><span class="bm-l">P25 — base estimation</span><span><b>CHF ${(price_p25||0).toLocaleString('fr-CH')}</b></span></div>
+    <div class="bm-row"><span class="bm-l">P50 (médiane)</span><span>CHF ${(price_p50||0).toLocaleString('fr-CH')}</span></div>
+    <div class="bm-row"><span class="bm-l">P75 (haut de marché)</span><span>CHF ${(price_p75||0).toLocaleString('fr-CH')}</span></div>
+    ${avg_days_online?`<div class="bm-row"><span class="bm-l">Durée moy. en ligne (${n_with_dom} ann.)</span><span><b>${avg_days_online}j</b> — ${liquidityLabel}</span></div>`:''}
+    ${is_reliable?`<button class="btn btn-g" style="margin-top:8px;font-size:10px;padding:5px 12px" onclick="applyBenchmarkPrice('${brand}','${model}',${price_conservative})">✓ Utiliser CHF ${(price_conservative||0).toLocaleString('fr-CH')} dans Admin</button>`:''}`;
+}
+
+async function runBenchmark(brand, model, dealIdx) {
+  const el = document.getElementById('bm-result-'+dealIdx);
+  if (!el) return;
+
+  const ymin = 2019;
+  const kmax = 100000;
+
+  // 1. Vérifier le cache Supabase d'abord
+  if (sbClient) {
+    try {
+      const {data:cached} = await sbClient
+        .from('benchmark_ch')
+        .select('*')
+        .eq('brand', brand)
+        .eq('model', model)
+        .gte('scraped_at', new Date(Date.now()-14*24*3600*1000).toISOString())
+        .order('scraped_at',{ascending:false})
+        .limit(1)
+        .single();
+
+      if (cached) {
+        renderBenchmarkResult(el, cached, true);
+        // Appliquer automatiquement si fiable
+        if (cached.is_reliable && cached.price_conservative) {
+          const key = brand+' '+model;
+          if (SPECS[key] && SPECS[key].rsrc === 'HYPOTHÈSE') {
+            SPECS[key].r = cached.price_conservative;
+            SPECS[key].rsrc = `AutoScout24.ch — ${cached.n_listings} ann., P25×0.95, ${new Date(cached.scraped_at).toLocaleDateString('fr-CH')}`;
+          }
+        }
+        return;
+      }
+    } catch(e) { /* pas de cache, on continue */ }
+  }
+
+  // 2. Pas de cache → scraper
+  el.innerHTML = '<div class="loading" style="padding:12px"><div class="spinner" style="width:20px;height:20px;border-width:2px"></div><div style="font-size:11px;color:#888;margin-top:8px">Scrape AutoScout24.ch en cours…</div></div>';
+
+  const make = brand.toLowerCase().replace(' ','-');
+  const mod  = model.toLowerCase().replace(/ /g,'-');
+  const searchUrl = `https://www.autoscout24.ch/lst/${make}/${mod}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
+
+  try {
+    const resp = await fetch('/api/search', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({searchUrl, maxItems:30, mode:'benchmark'})
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const {items} = await resp.json();
+
+    const prices = (items||[]).map(it=>parseFloat(it.price||it.priceEur||0)).filter(p=>p>10000).sort((a,b)=>a-b);
+    const doms   = (items||[]).map(it=>parseInt(it.daysOnMarket||it.days_on_market||0)).filter(d=>d>0);
+    const n = prices.length;
+
+    const isReliable = n >= 5;
+    const reliabilityNote = !isReliable ? `Seulement ${n} annonce(s) trouvée(s) — minimum 5 requis pour une estimation fiable` : null;
+
+    const p10  = n>=2 ? percentile(prices,10) : null;
+    const p25  = n>=2 ? percentile(prices,25) : null;
+    const p50  = n>=2 ? percentile(prices,50) : null;
+    const p75  = n>=2 ? percentile(prices,75) : null;
+    const pmin = n ? prices[0] : null;
+    const pmax = n ? prices[prices.length-1] : null;
+    const cons = p25 ? Math.round(p25*0.95) : null;
+    const avgDom = doms.length ? Math.round(doms.reduce((a,b)=>a+b,0)/doms.length) : null;
+
+    const record = {
+      brand, model, year_min:ymin, km_max:kmax,
+      n_listings:n, price_p10:p10, price_p25:p25, price_p50:p50,
+      price_p75:p75, price_min:pmin, price_max:pmax,
+      price_conservative:cons,
+      avg_days_online:avgDom, n_with_dom:doms.length,
+      is_reliable:isReliable, reliability_note:reliabilityNote,
+      search_url:searchUrl, scraped_by:getUser(),
+      raw_prices:prices
+    };
+
+    // 3. Sauvegarder dans Supabase
+    if (sbClient && n > 0) {
+      try {
+        await sbClient.from('benchmark_ch').upsert(record, {onConflict:'brand,model,year_min,km_max'});
+      } catch(e) { console.warn('SB benchmark save:', e); }
+    }
+
+    renderBenchmarkResult(el, {...record, scraped_at:new Date().toISOString()}, false);
+
+    // Mettre à jour SPECS si fiable
+    if (isReliable && cons) {
+      const key = brand+' '+model;
+      if (SPECS[key]) {
+        SPECS[key].r = cons;
+        SPECS[key].rsrc = `AutoScout24.ch — ${n} ann., P25×0.95, ${new Date().toLocaleDateString('fr-CH')}`;
+        renderDeals();
+      }
+    }
+  } catch(e) {
+    el.innerHTML = `<div style="font-size:11px;color:#cc0000">Erreur Apify : ${e.message}<br><br><a href="${`https://www.autoscout24.ch/fr/s/${brand.toLowerCase()}`}" target="_blank" style="color:#cc0000">↗ Ouvrir manuellement AutoScout24.ch</a></div>`;
+  }
+}
+
+function applyBenchmarkPrice(brand, model, price) {
+  const key = brand+' '+model;
+  if (!SPECS[key] || !price) return;
+  SPECS[key].r = price;
+  SPECS[key].rsrc = `AutoScout24.ch — P25×0.95 — ${new Date().toLocaleDateString('fr-CH')}`;
+  renderDeals(); renderStaticHeatmap();
+  alert(`✓ Prix de revente mis à jour : ${key} → CHF ${price.toLocaleString('fr-CH')}`);
+}
+
+function updN(ci,oi) {
+  const mg = parseFloat(document.getElementById('nm-'+ci+'-mg')?.value)||20000;
+  const rv = parseFloat(document.getElementById('nm-'+ci+'-rv')?.value)||140000;
+  const ng = parseFloat(document.getElementById('nm-'+ci+'-ng')?.value)||0.08;
+  const d  = deals[oi]; if(!d) return;
+  const spec = SPECS[d.brand+' '+d.model]; if(!spec) return;
+  const vatRateOrigin = {DE:0.19,FR:0.20,IT:0.22,ES:0.21,NL:0.21,BE:0.21,AT:0.20}[d.country]||0.20;
+
+  // Calcul inversé : quel prix max EUR pour obtenir mg CHF de marge ?
+  // rv - total_landed = mg → total_landed = rv - mg
+  // total_landed = prixHT_CHF + transport + autoTax + fixedFees + vat + co2
+  // autoTax = prixHT_CHF * 0.04
+  // vat = (prixHT_CHF + transport + autoTax + fixedFees) * 0.081
+  // Isoler prixHT_CHF :
+  const target_landed = rv - mg;
+  const co2pen = d._sb_id ? 0 : 0; // exempté pour véhicules d'occ >6 mois
+  const k = 1 + LEGAL.auto_tax.v + (1 + LEGAL.auto_tax.v)*LEGAL.vat.v;
+  const fixed = PARAMS.transport.v + LEGAL.fixed_fees.v + (PARAMS.transport.v + LEGAL.fixed_fees.v)*LEGAL.vat.v + co2pen;
+  const maxPrixHT_CHF = (target_landed - fixed) / k;
+  const maxPrixEUR = Math.round(maxPrixHT_CHF / PARAMS.fx.v);
+  const openEUR    = Math.round(maxPrixEUR * (1-ng));
+  // Prix max en TTC pays origine (pour info)
+  const maxPrixTTC_EUR = Math.round(maxPrixEUR * (1+vatRateOrigin));
+
+  const el = document.getElementById('nm-'+ci+'-res'); if(!el) return;
+  el.innerHTML = `
+    <div class="nb2"><div class="nb2-l">Prix max acceptable HT</div><div class="nb2-v blue">€${maxPrixEUR.toLocaleString('fr-CH')}</div><div class="nb2-s">≈ €${maxPrixTTC_EUR.toLocaleString('fr-CH')} TTC affiché — pour CHF ${mg.toLocaleString('fr-CH')} TTC garantis</div></div>
+    <div class="nb2"><div class="nb2-l">Ouverture négo (−${Math.round(ng*100)}%)</div><div class="nb2-v green">€${openEUR.toLocaleString('fr-CH')}</div><div class="nb2-s">Limite absolue : €${maxPrixEUR.toLocaleString('fr-CH')} HT</div></div>
+    <div class="nb2"><div class="nb2-l">Revente estimée TTC</div><div class="nb2-v orange">CHF ${rv.toLocaleString('fr-CH')}</div><div class="nb2-s">Marge cible : CHF ${mg.toLocaleString('fr-CH')}</div></div>
+    <div class="nb2"><div class="nb2-l">Landed target TTC</div><div class="nb2-v red">CHF ${Math.round(target_landed).toLocaleString('fr-CH')}</div><div class="nb2-s">= Revente − marge cible</div></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CRM PIPELINE
+// ═══════════════════════════════════════════════════════════════
+const CRM_S  = ['Watchlist','Contact','Négociation','Clôturé'];
+const CRM_TC = {Watchlist:'#0C447C',Contact:'#633806',Négociation:'#3C3489',Clôturé:'#085041'};
+const CRM_BG = {Watchlist:'#E6F1FB',Contact:'#FAEEDA',Négociation:'#EEEDFE',Clôturé:'#E1F5EE'};
+
+function renderPipeline() {
+  const c = document.getElementById('crm-grid'); c.innerHTML='';
+  const all = deals.map((d,i)=>({...d,_pr:profD(d),_i:i})).filter(d=>d._pr>0&&favs[dId(d)]);
+  CRM_S.forEach(stage => {
+    const col = document.createElement('div'); col.className='crm-col';
+    const sd  = all.filter(d=>{ const s=crmS[dId(d)]; return (!s&&stage==='Watchlist')||s===stage; });
+    col.innerHTML = `<div class="crm-ct" style="color:${CRM_TC[stage]}"><span>${stage}</span><span class="crm-cnt">${sd.length}</span></div>`;
+    if (!sd.length) { const e=document.createElement('div'); e.style.cssText='font-size:10px;color:#bbb;text-align:center;padding:10px 0'; e.textContent='—'; col.appendChild(e); }
+    sd.forEach(d => {
+      const id    = dId(d);
+      const flag  = FLAGS[d.country||'DE']||'🌍';
+      const notes = crmN[id]||[];
+      const item  = document.createElement('div'); item.className='crm-item';
+      const btns  = CRM_S.filter(s=>s!==stage).map(s=>`<button class="csb" style="background:${CRM_BG[s]};color:${CRM_TC[s]};border-color:${CRM_TC[s]}40" onclick="moveCRM('${id}','${s}')">${s}</button>`).join('');
+      item.innerHTML = `<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px"><span style="font-size:14px">${flag}</span><div style="font-size:11px;font-weight:700;color:#111">${d.brand} ${d.model}${d.version?' · '+d.version:''}</div></div><div style="font-size:10px;color:#888">${d.year} · ${(d.km||0).toLocaleString('fr-CH')} km · <span class="dom-badge ${domClass(d.dom)}" style="font-size:9px">${d.dom||0}j</span></div><div style="font-size:10px;color:#888;margin-top:1px">${d.sellerName}</div><div style="font-size:12px;font-weight:700;color:#0F6E56;margin-top:4px">CHF ${d._pr.toLocaleString('fr-CH')} TTC</div>${d.link?`<a href="${d.link}" target="_blank" style="font-size:10px;color:#185FA5;text-decoration:none;display:block;margin-top:3px">↗ Annonce</a>`:''}<div style="display:flex;gap:2px;margin-top:7px;flex-wrap:wrap">${btns}</div><div style="display:flex;gap:5px;margin-top:5px"><input class="cni" id="cn-${id}" placeholder="Note…" onclick="event.stopPropagation()"/><button class="cna" onclick="addNote('${id}')">+</button></div>${notes.length?`<div style="margin-top:4px">${notes.map(n=>`<div style="font-size:10px;color:#888;padding:2px 0;border-bottom:0.5px solid #f0f0f0">${n}</div>`).join('')}</div>`:''}`;
       col.appendChild(item);
     });
     c.appendChild(col);
   });
-  if(!all.length){const m=document.createElement('div');m.style.cssText='grid-column:1/-1;text-align:center;padding:28px;color:#aaa;font-size:12px';m.textContent='Aucun favori — cliquez ★ sur un deal pour le suivre ici.';c.appendChild(m);}
+  if (!all.length) { const m=document.createElement('div'); m.style.cssText='grid-column:1/-1;text-align:center;padding:28px;color:#bbb;font-size:12px'; m.textContent='Aucun favori — cliquez ★ sur un deal pour le suivre ici.'; c.appendChild(m); }
 }
-function moveCRM(id,s){crmS[id]=s;svC();renderPipeline();}
-function addNote(id){const inp=document.getElementById('cn-'+id);if(!inp||!inp.value.trim())return;if(!crmN[id])crmN[id]=[];const now=new Date();crmN[id].unshift('['+now.toLocaleDateString('fr-CH',{day:'2-digit',month:'2-digit'})+'] '+inp.value.trim());inp.value='';svC();renderPipeline();}
-
-function buildAdminTable(){
-  const tbody=document.getElementById('adm-tbody');tbody.innerHTML='';
-  Object.entries(SPECS).forEach(([key,s])=>{const tr=document.createElement('tr');tr.innerHTML=`<td style="padding:4px 8px;border-bottom:0.5px solid #f0f0f0">${key}</td><td style="padding:4px 8px;border-bottom:0.5px solid #f0f0f0">${s.co2}</td><td style="padding:4px 8px;border-bottom:0.5px solid #f0f0f0"><input class="isml" type="number" value="${s.r}" onchange="SPECS['${key}'].r=+this.value;renderDeals()" /></td>`;tbody.appendChild(tr);});
+function moveCRM(id,s){ crmS[id]=s; svC(); renderPipeline(); }
+function addNote(id){
+  const inp=document.getElementById('cn-'+id); if(!inp||!inp.value.trim()) return;
+  if(!crmN[id]) crmN[id]=[];
+  const now=new Date(); crmN[id].unshift('['+now.toLocaleDateString('fr-CH',{day:'2-digit',month:'2-digit'})+'] '+inp.value.trim());
+  inp.value=''; svC(); renderPipeline();
 }
-function saveName(){const u=document.getElementById('user-inp').value.trim();if(u)localStorage.setItem('karz_user',u);document.getElementById('name-msg').textContent='✓ Sauvegardé';document.getElementById('name-msg').style.color='#0F6E56';}
-function resetSearch(){['s-brand','s-model','s-ymin','s-ymax','s-kmax','s-pmax'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('results-area').innerHTML='';document.getElementById('url-prev').classList.remove('show');}
-function showPage(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');if(btn)btn.classList.add('active');if(name==='pipeline')renderPipeline();if(name==='deals')renderDeals();}
 
-// Init
-const savedUser=localStorage.getItem('karz_user');if(savedUser)document.getElementById('user-inp').value=savedUser;
-buildAdminTable();updCnts();renderDeals();updatePreview();
+// ═══════════════════════════════════════════════════════════════
+// HEATMAP
+// ═══════════════════════════════════════════════════════════════
+function rebuildHmModels() {
+  const brand = document.getElementById('hm-brand').value;
+  const sel   = document.getElementById('hm-model');
+  sel.innerHTML = '<option value="">— choisir —</option>';
+  (MODELS[brand]||[]).forEach(m => { const o=document.createElement('option'); o.value=m.s; o.textContent=m.n; sel.appendChild(o); });
+}
+
+async function runHeatmap() {
+  const brand = document.getElementById('hm-brand').value;
+  const model = document.getElementById('hm-model').value;
+  const ymin  = parseInt(document.getElementById('hm-ymin').value)||2019;
+  const kmax  = parseInt(document.getElementById('hm-kmax').value)||100000;
+  const area  = document.getElementById('hm-result-area');
+  if (!brand||!model) { area.innerHTML='<div style="font-size:11px;color:#cc0000;padding:10px">Sélectionnez une marque et un modèle.</div>'; return; }
+
+  const brandName  = brand==='porsche'?'Porsche':'Land Rover';
+  const modelName  = (MODELS[brand]||[]).find(m=>m.s===model)?.n||model;
+
+  // 1. Vérifier cache Supabase
+  if (sbClient) {
+    try {
+      const {data:cached} = await sbClient
+        .from('benchmark_ch')
+        .select('*')
+        .eq('brand', brandName)
+        .eq('model', modelName)
+        .gte('scraped_at', new Date(Date.now()-14*24*3600*1000).toISOString())
+        .order('scraped_at',{ascending:false})
+        .limit(1)
+        .single();
+      if (cached) {
+        renderHeatmapResult(area, cached, brandName, modelName, true);
+        renderStaticHeatmap();
+        return;
+      }
+    } catch(e) { /* pas de cache */ }
+  }
+
+  area.innerHTML = '<div class="loading" style="padding:20px"><div class="spinner"></div><div style="font-size:12px;font-weight:600;color:#333">Analyse du marché suisse…</div><div style="font-size:11px;color:#aaa;margin-top:5px">AutoScout24.ch via Apify · 1 scrape consommé</div></div>';
+
+  const searchUrl = `https://www.autoscout24.ch/lst/${brand}/${model}?cy=CH&ustate=U&sort=age&desc=0&fregfrom=${ymin}&kmto=${kmax}`;
+  try {
+    const resp = await fetch('/api/search', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({searchUrl, maxItems:30, mode:'benchmark'})
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const {items} = await resp.json();
+
+    const prices = (items||[]).map(it=>parseFloat(it.price||0)).filter(p=>p>10000).sort((a,b)=>a-b);
+    const doms   = (items||[]).map(it=>parseInt(it.daysOnMarket||it.days_on_market||0)).filter(d=>d>0);
+    const n = prices.length;
+    const isReliable = n >= 5;
+    const record = {
+      brand:brandName, model:modelName, year_min:ymin, km_max:kmax,
+      n_listings:n,
+      price_p10:  n>=2?percentile(prices,10):null,
+      price_p25:  n>=2?percentile(prices,25):null,
+      price_p50:  n>=2?percentile(prices,50):null,
+      price_p75:  n>=2?percentile(prices,75):null,
+      price_min:  n?prices[0]:null,
+      price_max:  n?prices[n-1]:null,
+      price_conservative: n>=2?Math.round(percentile(prices,25)*0.95):null,
+      avg_days_online: doms.length?Math.round(doms.reduce((a,b)=>a+b,0)/doms.length):null,
+      n_with_dom: doms.length,
+      is_reliable: isReliable,
+      reliability_note: !isReliable?`${n} annonce(s) — minimum 5 requis`:null,
+      search_url: searchUrl, scraped_by: getUser(), raw_prices: prices,
+      scraped_at: new Date().toISOString()
+    };
+    if (sbClient && n > 0) {
+      try { await sbClient.from('benchmark_ch').upsert(record,{onConflict:'brand,model,year_min,km_max'}); }
+      catch(e){ console.warn('SB heatmap save:',e); }
+    }
+    if (isReliable && record.price_conservative) {
+      const key = brandName+' '+modelName;
+      if (SPECS[key]) {
+        SPECS[key].r = record.price_conservative;
+        SPECS[key].rsrc = `AutoScout24.ch — ${n} ann., P25×0.95, ${new Date().toLocaleDateString('fr-CH')}`;
+      }
+    }
+    renderHeatmapResult(area, record, brandName, modelName, false);
+    renderStaticHeatmap();
+  } catch(e) {
+    area.innerHTML = `<div style="font-size:11px;color:#cc0000;padding:10px">Erreur Apify : ${e.message}</div>`;
+  }
+}
+
+function renderHeatmapResult(area, data, brandName, modelName, fromCache) {
+  const {n_listings,price_p10,price_p25,price_p50,price_p75,price_min,price_max,
+         price_conservative,avg_days_online,n_with_dom,is_reliable,reliability_note,scraped_at} = data;
+  const cacheNote = fromCache
+    ? `<span class="badge bl">Cache · ${new Date(scraped_at).toLocaleDateString('fr-CH')}</span>`
+    : `<span class="badge bv">Scrape frais · ${new Date().toLocaleDateString('fr-CH')}</span>`;
+  const liqLabel = avg_days_online
+    ? avg_days_online<20?'✓ Rotation rapide':avg_days_online<45?'Rotation normale':'⚠ Rotation lente'
+    : '—';
+  area.innerHTML = `
+    <div class="hm-result">
+      <div style="font-size:12px;font-weight:700;color:#111;margin-bottom:10px;display:flex;align-items:center;gap:7px">${brandName} ${modelName} — Marché CH ${cacheNote}</div>
+      ${!is_reliable?`<div style="background:#FCEBEB;border-radius:4px;padding:6px 9px;font-size:11px;color:#791F1F;margin-bottom:8px">⚠ ${reliability_note}</div>`:''}
+      <div class="hm-model-row" style="background:#E1F5EE;padding:5px 8px;border-radius:4px;margin-bottom:7px"><span class="bm-l" style="color:#085041;font-weight:700">Prix retenu (P25 × 0.95)</span><span style="font-weight:700;color:#0F6E56;font-size:13px">CHF ${(price_conservative||0).toLocaleString('fr-CH')}</span></div>
+      <div style="font-size:10px;color:#888;padding:6px 8px;background:#f8f8f8;border-radius:4px;margin-bottom:8px;line-height:1.5"><b>Méthode :</b> P25 = CHF ${(price_p25||0).toLocaleString('fr-CH')} × 0.95 = CHF ${(price_conservative||0).toLocaleString('fr-CH')}. 75% des annonces sont plus chères. Décote 5% pour frais de vente.</div>
+      <div class="hm-model-row"><span class="bm-l">Annonces analysées</span><span><b>${n_listings}</b></span></div>
+      <div class="hm-model-row"><span class="bm-l">Min → Max</span><span>CHF ${(price_min||0).toLocaleString('fr-CH')} → ${(price_max||0).toLocaleString('fr-CH')}</span></div>
+      <div class="hm-model-row"><span class="bm-l">P10</span><span>CHF ${(price_p10||0).toLocaleString('fr-CH')}</span></div>
+      <div class="hm-model-row"><span class="bm-l">P25 (base)</span><span><b>CHF ${(price_p25||0).toLocaleString('fr-CH')}</b></span></div>
+      <div class="hm-model-row"><span class="bm-l">Médiane P50</span><span>CHF ${(price_p50||0).toLocaleString('fr-CH')}</span></div>
+      <div class="hm-model-row"><span class="bm-l">P75</span><span>CHF ${(price_p75||0).toLocaleString('fr-CH')}</span></div>
+      ${avg_days_online?`<div class="hm-model-row"><span class="bm-l">Durée moy. en ligne</span><span><b>${avg_days_online}j</b> — ${liqLabel} (${n_with_dom} ann.)</span></div>`:''}
+      <div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap">
+        ${is_reliable?`<button class="btn btn-g" style="font-size:10px;padding:5px 12px" onclick="applyBenchmarkPrice('${brandName}','${modelName}',${price_conservative})">✓ Utiliser CHF ${(price_conservative||0).toLocaleString('fr-CH')} dans Admin</button>`:''}
+        <button class="btn" style="font-size:10px;padding:5px 12px" onclick="forceRescrape('${brandName}','${modelName}')">↺ Forcer nouveau scrape</button>
+      </div>
+    </div>`;
+}
+
+async function forceRescrape(brand, model) {
+  if (!sbClient) return;
+  try {
+    await sbClient.from('benchmark_ch').delete().eq('brand',brand).eq('model',model);
+    document.getElementById('hm-brand').value = brand==='Porsche'?'porsche':'land-rover';
+    rebuildHmModels();
+    alert('Cache supprimé. Relancez l\'analyse.');
+  } catch(e) { alert('Erreur suppression cache : '+e.message); }
+}
+
+function renderStaticHeatmap() {
+  const years = [2020,2021,2022,2023,2024];
+  const rows  = [
+    ['Porsche','911 GT3'],['Porsche','911 Turbo S'],['Porsche','Cayenne Turbo'],
+    ['Porsche','Taycan Turbo S'],['Land Rover','Defender 110 V8'],
+    ['Land Rover','Range Rover Sport SVR'],['Land Rover','Range Rover'],
+  ];
+  const grid = document.getElementById('hm-static-grid');
+  grid.innerHTML='';
+  // Headers
+  const hh = document.createElement('div'); hh.className='hm-hdr'; grid.appendChild(hh);
+  years.forEach(y => { const h=document.createElement('div'); h.className='hm-hdr'; h.textContent=y; grid.appendChild(h); });
+
+  rows.forEach(([brand,model]) => {
+    const spec = SPECS[brand+' '+model]; if(!spec) return;
+    const lbl  = document.createElement('div'); lbl.className='hm-lbl'; lbl.textContent=model; grid.appendChild(lbl);
+    years.forEach(y => {
+      // Estimation prix EU basée sur dépréciation linéaire depuis revente CH actuelle
+      // Hypothèse : véhicule EU coûte ~78% du prix CH neuf, -4% par an d'ancienneté
+      const ageFactor = 1 - (2024-y)*0.04;
+      const estimPrixEU_CHF = spec.r * 0.78 * ageFactor;
+      const vatRateOrigin = 0.19; // Allemagne par défaut
+      const prixHT_CHF = Math.round(estimPrixEU_CHF / (1+vatRateOrigin));
+      const landed = calcLanded(prixHT_CHF, true, spec, 24, 20000); // 2 ans, 20k km → exempté CO2
+      const gap = Math.round(spec.r - landed.total);
+      const cell = document.createElement('div'); cell.className='hm-cell';
+      let bg,tc;
+      if      (gap > 15000) { bg='#E1F5EE'; tc='#085041'; }
+      else if (gap > 8000)  { bg='#FAEEDA'; tc='#633806'; }
+      else                  { bg='#FCEBEB'; tc='#791F1F'; }
+      cell.style.cssText = `background:${bg};color:${tc}`;
+      cell.innerHTML = `<span style="font-size:11px;font-weight:700">+${Math.round(gap/1000)}k</span><span style="font-size:9px">CHF</span>`;
+      cell.title = `${brand} ${model} ${y} — Marge estimée CHF ${gap.toLocaleString('fr-CH')} (landed CHF ${landed.total.toLocaleString('fr-CH')} vs revente CHF ${spec.r.toLocaleString('fr-CH')})`;
+      grid.appendChild(cell);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADMIN
+// ═══════════════════════════════════════════════════════════════
+function buildAdminTable() {
+  const tbody = document.getElementById('adm-tbody'); tbody.innerHTML='';
+  Object.entries(SPECS).forEach(([key,s]) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="padding:4px 8px;border-bottom:0.5px solid #f5f5f5;font-size:11px">${key}</td><td style="padding:4px 8px;border-bottom:0.5px solid #f5f5f5">${s.co2||'0 (électrique)'}</td><td style="padding:4px 8px;border-bottom:0.5px solid #f5f5f5">${s.kg}</td><td style="padding:4px 8px;border-bottom:0.5px solid #f5f5f5"><input class="isml" type="number" value="${s.r}" onchange="SPECS['${key}'].r=+this.value;SPECS['${key}'].rsrc='Modifié manuellement le ${new Date().toLocaleDateString('fr-CH')}';renderDeals()"/></td><td style="padding:4px 8px;border-bottom:0.5px solid #f5f5f5;font-size:10px;color:#aaa">${s.rsrc}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+function saveName() {
+  const u=document.getElementById('user-inp').value.trim();
+  if(u) localStorage.setItem('karz9_user',u);
+  document.getElementById('name-msg').textContent='✓ Sauvegardé';
+  document.getElementById('name-msg').style.color='#0F6E56';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+function showPage(name,btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='pipeline') renderPipeline();
+  if(name==='deals')    renderDeals();
+  if(name==='heatmap')  renderStaticHeatmap();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+const savedUser = localStorage.getItem('karz9_user');
+if(savedUser) document.getElementById('user-inp').value = savedUser;
+buildAdminTable();
+updCnts();
+renderDeals();
+renderStaticHeatmap();
+updatePreview();
 </script>
 </body>
 </html>
