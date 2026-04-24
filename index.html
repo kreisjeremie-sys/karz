@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KARZ — Luxury Auto Arbitrage · GVA</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f8f9fa;color:#1a1a1a;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+.app{max-width:1200px;margin:0 auto;background:#fff;min-height:100vh;box-shadow:0 0 40px rgba(0,0,0,.06)}
+.topbar{background:#111;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.logo{font-size:16px;font-weight:600;letter-spacing:2.5px;color:#fff}.logo em{color:#1D9E75;font-style:normal}
+.logo-sub{font-size:10px;color:#666;margin-left:10px;font-weight:400;letter-spacing:0}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sbadge{font-size:10px;padding:3px 9px;border-radius:4px;border:0.5px solid;font-weight:500}
+.sb-ok{background:#E1F5EE;border-color:#1D9E75;color:#085041}
+.sb-no{background:#333;border-color:#555;color:#aaa}
+.hyp-btn{font-size:10px;background:#FAEEDA;border:0.5px solid #EF9F27;padding:3px 9px;border-radius:4px;color:#633806;cursor:pointer;font-weight:500}
+.nav{display:flex;border-bottom:1px solid #eee;padding:0 18px;background:#fff;overflow-x:auto;gap:0}
+.nb{padding:10px 14px;font-size:11px;font-family:inherit;background:none;border:none;border-bottom:2px solid transparent;color:#888;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;letter-spacing:.3px;font-weight:500}
+.nb.active{color:#111;border-bottom-color:#1D9E75}
+.nb:hover:not(.active){color:#333}
+.pill{background:#EF9F27;color:#412402;font-size:9px;font-weight:600;border-radius:8px;padding:1px 5px}
+.page{display:none;padding:18px}.page.active{display:block}
+
+/* HYP PANEL */
+.hyp-panel{background:#fffdf7;border:0.5px solid #EF9F27;border-radius:8px;padding:14px 16px;margin:0 18px 12px;display:none}
+.hyp-panel.show{display:block}
+.hp-title{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#854F0B;font-weight:600;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
+.hyp-table{width:100%;border-collapse:collapse;font-size:11px}
+.hyp-table th{text-align:left;padding:5px 7px;border-bottom:1px solid #eee;font-size:9px;text-transform:uppercase;color:#999;font-weight:600}
+.hyp-table td{padding:5px 7px;border-bottom:0.5px solid #f0f0f0;vertical-align:middle}
+.hi{font-size:11px;padding:3px 7px;border:0.5px solid #EF9F27;border-radius:4px;background:#FAEEDA;color:#333;font-family:'Courier New',monospace;width:90px;text-align:right}
+.hi.conf{border-color:#1D9E75;background:#E1F5EE}
+.si{font-size:10px;padding:3px 7px;border:0.5px solid #ddd;border-radius:4px;background:#f8f8f8;color:#666;font-family:inherit;width:100%}
+.badge{display:inline-block;font-size:9px;padding:2px 6px;border-radius:3px;font-weight:600;white-space:nowrap}
+.bg-hyp{background:#FAEEDA;color:#633806}
+.bg-law{background:#E6F1FB;color:#0C447C}
+.bg-green{background:#E1F5EE;color:#085041}
+.bg-gray{background:#f0f0f0;color:#666}
+.bg-ht{background:#EEEDFE;color:#3C3489}
+.bg-ttc{background:#E1F5EE;color:#085041}
+
+/* SEARCH */
+.section{background:#f8f9fa;border:0.5px solid #e8e8e8;border-radius:8px;padding:14px 16px;margin-bottom:12px}
+.sec-title{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#999;font-weight:600;margin-bottom:11px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:11px}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-size:10px;color:#888;letter-spacing:.4px;text-transform:uppercase;font-weight:500}
+.fg select,.fg input{font-size:11px;padding:6px 9px;border:0.5px solid #ddd;border-radius:5px;background:#fff;color:#333;font-family:inherit;width:100%}
+.url-prev{font-size:10px;color:#888;background:#f0f0f0;border-radius:4px;padding:6px 9px;font-family:'Courier New',monospace;word-break:break-all;margin:7px 0;display:none}
+.url-prev.show{display:block}
+.btn{padding:8px 16px;border:0.5px solid #ddd;border-radius:6px;background:#fff;color:#333;font-family:inherit;font-size:11px;cursor:pointer;transition:background .15s;white-space:nowrap;font-weight:500}
+.btn:hover{background:#f0f0f0}
+.btn-green{border-color:#1D9E75;color:#0F6E56;background:#E1F5EE}
+.btn-green:hover{background:#c8f0e0}
+.btn-blue{border-color:#185FA5;color:#185FA5}
+.btn-blue:hover{background:#E6F1FB}
+
+/* RESULTS */
+.loading-box{text-align:center;padding:36px;color:#888}
+.spinner{width:30px;height:30px;border:2px solid #eee;border-top-color:#1D9E75;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{background:#fff5f5;border:0.5px solid #ffcccc;border-radius:6px;padding:12px 14px;font-size:11px;color:#cc0000;margin-top:10px;line-height:1.7}
+.result-card{background:#fff;border:0.5px solid #eee;border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;transition:border-color .2s}
+.result-card:hover{border-color:#ccc}
+.rc-main{flex:1;min-width:0}
+.rc-name{font-size:13px;font-weight:600;color:#111}
+.rc-sub{font-size:11px;color:#888;margin-top:3px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.rc-link{font-size:10px;color:#185FA5;text-decoration:none;display:inline-flex;align-items:center;gap:2px;margin-top:4px}
+.rc-link:hover{text-decoration:underline}
+.rc-fins{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+.rc-fin{background:#f8f9fa;border-radius:4px;padding:5px 9px;min-width:90px}
+.rc-fin-lbl{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.3px;font-weight:600}
+.rc-fin-val{font-size:12px;font-weight:600;margin-top:2px;color:#333}
+.rc-fin-val.profit{color:#0F6E56}
+.rc-fin-val.warn{color:#854F0B}
+.rc-fin-val.neg{color:#cc0000}
+.rc-calc{font-size:10px;color:#aaa;margin-top:6px;line-height:1.6}
+.rc-actions{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.add-btn{font-size:11px;padding:7px 12px;border:0.5px solid #1D9E75;border-radius:5px;background:#E1F5EE;color:#0F6E56;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap}
+.add-btn:hover{background:#c8f0e0}
+.add-btn.added{background:#f0f0f0;color:#999;cursor:default;border-color:#ddd}
+.skip-btn{font-size:10px;padding:4px 9px;border:0.5px solid #ddd;border-radius:4px;background:#fff;color:#999;cursor:pointer;font-family:inherit}
+
+/* DEALS */
+.stats-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.stat{background:#f8f9fa;border-radius:7px;padding:10px 13px;border:0.5px solid #eee}
+.stat-lbl{font-size:10px;color:#999;letter-spacing:.4px;text-transform:uppercase;font-weight:500}
+.stat-val{font-size:20px;font-weight:600;margin-top:3px;color:#111}
+.stat-val.up{color:#0F6E56}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.sh-t{font-size:10px;letter-spacing:1px;color:#999;text-transform:uppercase;font-weight:600}
+.deal-card{background:#fff;border:0.5px solid #eee;border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:border-color .2s}
+.deal-card:hover{border-color:#ccc}
+.deal-card.expanded{border-color:#1D9E75;border-width:1px}
+.deal-card.fav{border-left:3px solid #EF9F27}
+.fav-btn{background:none;border:none;cursor:pointer;font-size:16px;color:#ccc;flex-shrink:0;padding:2px}
+.fav-btn.on{color:#EF9F27}
+.fins{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+.fb{background:#f8f9fa;border-radius:5px;padding:8px 10px;border:0.5px solid #eee}
+.fl{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.3px;font-weight:600;display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-bottom:3px}
+.fv{font-size:13px;font-weight:600;color:#111}
+.fv.profit{color:#0F6E56}
+.trans{background:#f8f9fa;border-radius:6px;padding:12px;margin-top:10px;display:none;border:0.5px solid #eee}
+.deal-card.expanded .trans{display:block}
+.nego{background:#f8f9fa;border-radius:6px;padding:12px;margin-top:8px;display:none;border:0.5px solid #eee}
+.deal-card.expanded .nego{display:block}
+.ngrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ni{display:flex;flex-direction:column;gap:3px}
+.ni label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.3px;font-weight:500}
+.ni input,.ni select{font-size:11px;padding:5px 8px;border:0.5px solid #ddd;border-radius:4px;background:#fff;color:#333;font-family:inherit;width:100%}
+.nres{margin-top:9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.nb2{background:#fff;border:0.5px solid #eee;border-radius:5px;padding:9px 10px}
+.nb2-lbl{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:.3px;font-weight:600;margin-bottom:3px}
+.nb2-val{font-size:14px;font-weight:600;color:#333}
+.nb2-val.blue{color:#185FA5}.nb2-val.green{color:#0F6E56}.nb2-val.red{color:#cc0000}
+.nb2-sub{font-size:10px;color:#aaa;margin-top:2px;line-height:1.3}
+.tr-row{display:flex;justify-content:space-between;padding:3px 0;border-bottom:0.5px solid #f0f0f0;font-size:11px}
+.tr-row:last-child{border:none;font-weight:600;font-size:12px;padding-top:6px;color:#0F6E56}
+.tr-lbl{color:#888;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.del-btn{font-size:10px;color:#cc0000;cursor:pointer;background:none;border:none;font-family:inherit;padding:0;text-decoration:underline;margin-top:7px;display:inline-block}
+.no-data{color:#aaa;font-size:12px;padding:28px;text-align:center}
+
+/* CRM */
+.crm-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.crm-col{background:#f8f9fa;border-radius:8px;padding:11px;border:0.5px solid #eee}
+.crm-ct{font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
+.crm-cnt{background:#fff;border:0.5px solid #ddd;border-radius:8px;padding:1px 7px;font-size:10px;color:#999}
+.crm-item{background:#fff;border:0.5px solid #eee;border-radius:6px;padding:9px 10px;margin-bottom:6px}
+.csb{font-size:10px;padding:2px 7px;border-radius:3px;border:0.5px solid;background:none;cursor:pointer;font-family:inherit;margin:1px;font-weight:500}
+.cni{flex:1;font-size:10px;padding:3px 6px;border:0.5px solid #ddd;border-radius:4px;background:#f8f8f8;color:#333;font-family:inherit}
+.cna{font-size:10px;padding:3px 8px;border:0.5px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;color:#666;font-family:inherit}
+
+/* ADMIN */
+.admin-s{background:#f8f9fa;border-radius:8px;padding:13px 15px;margin-bottom:10px;border:0.5px solid #eee}
+.at{font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:#666;margin-bottom:10px}
+.ar{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.ar label{font-size:11px;color:#666;min-width:160px;font-weight:500}
+.ar input{font-family:inherit;font-size:11px;padding:5px 8px;border:0.5px solid #ddd;border-radius:4px;background:#fff;color:#333;flex:1;min-width:200px;max-width:420px}
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{text-align:left;padding:5px 8px;border-bottom:1px solid #eee;font-size:9px;text-transform:uppercase;color:#999;font-weight:600}
+.tbl td{padding:5px 8px;border-bottom:0.5px solid #f0f0f0}
+.isml{font-family:inherit;font-size:11px;padding:3px 6px;border:0.5px solid #ddd;border-radius:3px;background:#fff;color:#333;width:85px}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="topbar">
+  <div class="logo">K<em>A</em>RZ <span class="logo-sub">LUXURY AUTO ARBITRAGE · GVA</span></div>
+  <div class="topbar-right">
+    <span class="sbadge sb-no" id="apify-st">⟳ Apify</span>
+    <span class="sbadge sb-no" id="sb-st">⟳ Supabase</span>
+    <button class="hyp-btn" onclick="toggleHyp()">⚠ Hypothèses de calcul</button>
+  </div>
+</div>
+<div class="nav">
+  <button class="nb active" onclick="showPage('search',this)">⚡ RECHERCHE AUTO</button>
+  <button class="nb" onclick="showPage('deals',this)">MES DEALS <span class="pill" id="deal-cnt">0</span></button>
+  <button class="nb" onclick="showPage('pipeline',this)">PIPELINE <span class="pill" id="fav-cnt">0</span></button>
+  <button class="nb" onclick="showPage('admin',this)">ADMIN</button>
+</div>
+
+<!-- HYPOTHÈSES -->
+<div class="hyp-panel" id="hyp-panel">
+  <div class="hp-title">
+    <span>⚠ Hypothèses de calcul — transparence totale</span>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-green" style="padding:4px 10px;font-size:10px" onclick="saveHyp()">✓ Sauvegarder</button>
+      <button style="background:none;border:none;cursor:pointer;font-size:14px;color:#999" onclick="toggleHyp()">✕</button>
+    </div>
+  </div>
+  <div style="font-size:11px;color:#888;margin-bottom:9px;padding:7px 10px;background:#fff;border-radius:5px;line-height:1.5">
+    <span class="badge bg-hyp">Hypothèse</span> = estimée, à confirmer avec un devis réel &nbsp;
+    <span class="badge bg-law">Loi</span> = valeur légale fixée, non modifiable &nbsp;
+    <span class="badge bg-green">Confirmé</span> = issu d'un devis ou document réel
+  </div>
+  <div style="overflow-x:auto">
+    <table class="hyp-table"><thead><tr><th>Paramètre</th><th>Valeur</th><th>Statut</th><th>Source / Référence</th><th>Par</th><th>Date</th></tr></thead>
+    <tbody id="hyp-tbody"></tbody></table>
+  </div>
+</div>
+
+<!-- RECHERCHE -->
+<div id="page-search" class="page active">
+  <div class="section">
+    <div class="sec-title">Critères de recherche — AutoScout24 via Apify</div>
+    <div class="fgrid">
+      <div class="fg"><label>Marque</label>
+        <select id="s-brand" onchange="rebuildModels();updatePreview()">
+          <option value="">Toutes</option>
+          <option value="porsche">Porsche</option>
+          <option value="land-rover">Land Rover</option>
+        </select>
+      </div>
+      <div class="fg"><label>Modèle</label>
+        <select id="s-model" onchange="updatePreview()"><option value="">Tous</option></select>
+      </div>
+      <div class="fg"><label>Pays</label>
+        <select id="s-country" onchange="updatePreview()">
+          <option value="DE">🇩🇪 Allemagne</option>
+          <option value="FR">🇫🇷 France</option>
+          <option value="IT">🇮🇹 Italie</option>
+          <option value="ES">🇪🇸 Espagne</option>
+          <option value="NL">🇳🇱 Pays-Bas</option>
+          <option value="BE">🇧🇪 Belgique</option>
+          <option value="AT">🇦🇹 Autriche</option>
+        </select>
+      </div>
+      <div class="fg"><label>Année min</label><input type="number" id="s-ymin" placeholder="2020" oninput="updatePreview()" /></div>
+      <div class="fg"><label>Année max</label><input type="number" id="s-ymax" placeholder="2025" oninput="updatePreview()" /></div>
+      <div class="fg"><label>Km max</label><input type="number" id="s-kmax" placeholder="50000" oninput="updatePreview()" /></div>
+      <div class="fg"><label>Prix max EUR</label><input type="number" id="s-pmax" placeholder="250000" oninput="updatePreview()" /></div>
+      <div class="fg"><label>Nb résultats max</label><input type="number" id="s-max" value="20" min="5" max="50" /></div>
+    </div>
+    <div class="url-prev" id="url-prev"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-green" onclick="runSearch()">⚡ Lancer la recherche</button>
+      <button class="btn" onclick="resetSearch()">✕ Réinitialiser</button>
+      <span id="search-msg" style="font-size:11px;color:#888"></span>
+    </div>
+  </div>
+  <div id="results-area"></div>
+</div>
+
+<!-- DEALS -->
+<div id="page-deals" class="page">
+  <div class="stats-row">
+    <div class="stat"><div class="stat-lbl">Deals</div><div class="stat-val" id="s-tot">—</div></div>
+    <div class="stat"><div class="stat-lbl">Marge moy. TTC</div><div class="stat-val up" id="s-avg">—</div></div>
+    <div class="stat"><div class="stat-lbl">Meilleure marge</div><div class="stat-val up" id="s-best">—</div></div>
+    <div class="stat"><div class="stat-lbl">Pipeline</div><div class="stat-val" id="s-fav">—</div></div>
+  </div>
+  <div class="sh"><span class="sh-t">Classés par marge nette TTC</span><span style="font-size:10px;color:#aaa">Cliquer → rapport + négociateur</span></div>
+  <div id="deal-list"></div>
+</div>
+
+<!-- PIPELINE -->
+<div id="page-pipeline" class="page">
+  <div class="sh"><span class="sh-t">Pipeline CRM — suivi des favoris</span></div>
+  <div class="crm-grid" id="crm-grid"></div>
+</div>
+
+<!-- ADMIN -->
+<div id="page-admin" class="page">
+  <div class="admin-s">
+    <div class="at">🔑 Configuration</div>
+    <div style="font-size:11px;color:#888;margin-bottom:10px;line-height:1.5">Les tokens sont stockés dans les variables d'environnement Vercel — jamais dans le code. Cette page permet de saisir votre prénom pour la traçabilité.</div>
+    <div class="ar"><label>Votre prénom</label><input type="text" id="user-inp" placeholder="Jérémie" /></div>
+    <button class="btn btn-green" onclick="saveName()" style="margin-top:4px">✓ Sauvegarder</button>
+    <span id="name-msg" style="font-size:11px;margin-left:8px"></span>
+  </div>
+  <div class="admin-s">
+    <div class="at">Baselines revente CH (CHF TTC) — vérifier 2×/mois sur AutoScout24.ch</div>
+    <div style="font-size:11px;color:#888;margin-bottom:9px">Cliquez ⚠ Hypothèses en haut pour modifier les paramètres de calcul.</div>
+    <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Modèle</th><th>CO2 g/km</th><th>Revente CHF</th></tr></thead><tbody id="adm-tbody"></tbody></table></div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://kkytyznvqwptdnsgodlo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreXR5em52cXdwdGRuc2dvZGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzUyNzksImV4cCI6MjA5MjQ1MTI3OX0.XLYgXXUkxAkHXaWCc4diAclSpLxLpsZV_NYohr9cSlg';
+
+const FLAGS={DE:'🇩🇪',FR:'🇫🇷',IT:'🇮🇹',ES:'🇪🇸',NL:'🇳🇱',BE:'🇧🇪',AT:'🇦🇹',PT:'🇵🇹',UK:'🇬🇧'};
+const CNAMES={DE:'Allemagne',FR:'France',IT:'Italie',ES:'Espagne',NL:'Pays-Bas',BE:'Belgique',AT:'Autriche'};
+const CY={DE:'D',FR:'F',IT:'I',ES:'E',NL:'NL',BE:'B',AT:'A'};
+
+const MODELS={
+  porsche:[
+    {n:'911 Carrera',s:'911-carrera'},{n:'911 Carrera S',s:'911-carrera-s'},
+    {n:'911 Carrera 4S',s:'911-carrera-4s'},{n:'911 Targa 4S',s:'911-targa-4s'},
+    {n:'911 Turbo',s:'911-turbo'},{n:'911 Turbo S',s:'911-turbo-s'},
+    {n:'911 GT3',s:'911-gt3'},{n:'911 GT3 RS',s:'911-gt3-rs'},
+    {n:'911 GT3 Touring',s:'911-gt3-touring'},{n:'718 Cayman GT4',s:'718-cayman-gt4'},
+    {n:'718 Cayman GT4 RS',s:'718-cayman-gt4-rs'},{n:'718 Boxster S',s:'718-boxster-s'},
+    {n:'Cayenne',s:'cayenne'},{n:'Cayenne GTS',s:'cayenne-gts'},
+    {n:'Cayenne Turbo',s:'cayenne-turbo'},{n:'Cayenne Turbo S E-Hybrid',s:'cayenne-turbo-s-e-hybrid'},
+    {n:'Macan',s:'macan'},{n:'Macan GTS',s:'macan-gts'},{n:'Macan Turbo',s:'macan-turbo'},
+    {n:'Taycan',s:'taycan'},{n:'Taycan 4S',s:'taycan-4s'},{n:'Taycan GTS',s:'taycan-gts'},
+    {n:'Taycan Turbo',s:'taycan-turbo'},{n:'Taycan Turbo S',s:'taycan-turbo-s'},
+    {n:'Panamera',s:'panamera'},{n:'Panamera Turbo S',s:'panamera-turbo-s'},
+  ],
+  'land-rover':[
+    {n:'Defender 90',s:'defender-90'},{n:'Defender 90 V8',s:'defender-90-v8'},
+    {n:'Defender 110',s:'defender-110'},{n:'Defender 110 D300',s:'defender-110-d300'},
+    {n:'Defender 110 D350',s:'defender-110-d350'},{n:'Defender 110 V8',s:'defender-110-v8'},
+    {n:'Defender 130',s:'defender-130'},{n:'Discovery',s:'discovery'},
+    {n:'Discovery Sport',s:'discovery-sport'},{n:'Range Rover',s:'range-rover'},
+    {n:'Range Rover SV',s:'range-rover-sv'},{n:'Range Rover Sport',s:'range-rover-sport'},
+    {n:'Range Rover Sport D350',s:'range-rover-sport-d350'},
+    {n:'Range Rover Sport P400e',s:'range-rover-sport-p400e'},
+    {n:'Range Rover Sport SVR',s:'range-rover-sport-svr'},
+    {n:'Range Rover Evoque',s:'range-rover-evoque'},
+    {n:'Range Rover Velar',s:'range-rover-velar'},
+    {n:'Range Rover Velar P400e',s:'range-rover-velar-p400e'},
+  ]
+};
+
+const SPECS={
+  'Porsche 911 Carrera':{co2:205,r:145000},'Porsche 911 Carrera S':{co2:215,r:162000},
+  'Porsche 911 Carrera 4S':{co2:220,r:168000},'Porsche 911 Targa 4S':{co2:225,r:170000},
+  'Porsche 911 Turbo':{co2:235,r:210000},'Porsche 911 Turbo S':{co2:245,r:240000},
+  'Porsche 911 GT3':{co2:270,r:218000},'Porsche 911 GT3 RS':{co2:285,r:290000},
+  'Porsche 911 GT3 Touring':{co2:268,r:215000},'Porsche 718 Cayman GT4':{co2:245,r:118000},
+  'Porsche 718 Cayman GT4 RS':{co2:255,r:145000},'Porsche 718 Boxster S':{co2:205,r:82000},
+  'Porsche Cayenne':{co2:255,r:98000},'Porsche Cayenne GTS':{co2:280,r:118000},
+  'Porsche Cayenne Turbo':{co2:295,r:152000},'Porsche Cayenne Turbo S E-Hybrid':{co2:75,r:168000},
+  'Porsche Macan':{co2:210,r:72000},'Porsche Macan GTS':{co2:218,r:82000},
+  'Porsche Macan Turbo':{co2:0,r:95000},'Porsche Taycan':{co2:0,r:95000},
+  'Porsche Taycan 4S':{co2:0,r:108000},'Porsche Taycan GTS':{co2:0,r:128000},
+  'Porsche Taycan Turbo':{co2:0,r:148000},'Porsche Taycan Turbo S':{co2:0,r:168000},
+  'Porsche Panamera':{co2:188,r:88000},'Porsche Panamera Turbo S':{co2:228,r:148000},
+  'Land Rover Defender 90':{co2:232,r:88000},'Land Rover Defender 90 V8':{co2:344,r:118000},
+  'Land Rover Defender 110':{co2:230,r:92000},'Land Rover Defender 110 D300':{co2:218,r:98000},
+  'Land Rover Defender 110 D350':{co2:222,r:102000},'Land Rover Defender 110 V8':{co2:358,r:125000},
+  'Land Rover Defender 130':{co2:235,r:105000},'Land Rover Discovery':{co2:215,r:78000},
+  'Land Rover Discovery Sport':{co2:195,r:58000},'Land Rover Range Rover':{co2:315,r:168000},
+  'Land Rover Range Rover SV':{co2:290,r:215000},'Land Rover Range Rover Sport':{co2:248,r:118000},
+  'Land Rover Range Rover Sport D350':{co2:221,r:135000},
+  'Land Rover Range Rover Sport P400e':{co2:52,r:128000},
+  'Land Rover Range Rover Sport SVR':{co2:338,r:175000},
+  'Land Rover Range Rover Evoque':{co2:182,r:52000},
+  'Land Rover Range Rover Velar':{co2:195,r:72000},
+  'Land Rover Range Rover Velar P400e':{co2:52,r:88000},
+};
+
+let PARAMS={
+  fx:    {value:1.05, label:'Taux EUR/CHF',          unit:'CHF/EUR',isHyp:true, source:'BNS indicatif — à mettre à jour',legalRef:null,by:'—',at:'—'},
+  tr:    {value:1200, label:'Transport EU→GVA',       unit:'EUR HT', isHyp:true, source:'Estimation — demander devis',   legalRef:null,by:'—',at:'—'},
+  fees:  {value:800,  label:'Frais admin/courtage',   unit:'CHF TTC',isHyp:true, source:'Estimation interne',            legalRef:null,by:'—',at:'—'},
+  homolog:{value:500, label:'Homologation Suisse',    unit:'CHF TTC',isHyp:true, source:'Estimation garage partenaire',  legalRef:null,by:'—',at:'—'},
+  vat:   {value:0.077,label:'TVA Suisse 7.7%',        unit:'%',      isHyp:false,source:'Taux légal 01/01/2024',        legalRef:'LIFD Art.25 al.1',by:'Loi',at:'2024'},
+  znz:   {value:0.04, label:'Taxe ZNZ GE 4%',         unit:'%',      isHyp:false,source:'4% de la valeur à l\'import', legalRef:'LRVM GE Art.7',   by:'Loi',at:'2024'},
+  co2t:  {value:117,  label:'Seuil CO2 fédéral',      unit:'g/km',   isHyp:false,source:'OFEN seuil 2024',             legalRef:'LCO2 Art.13 2024',by:'Loi',at:'2024'},
+  co2k:  {value:0.005,label:'Coeff. pénalité CO2',    unit:'CHF/g²', isHyp:false,source:'(CO2−seuil)² × 0.005 × 100', legalRef:'LCO2 Art.14 2024',by:'Loi',at:'2024'},
+};
+function P(k){return PARAMS[k]?.value||0;}
+
+let deals=JSON.parse(localStorage.getItem('karz_d')||'[]');
+let favs=JSON.parse(localStorage.getItem('karz_f')||'{}');
+let crmS=JSON.parse(localStorage.getItem('karz_c')||'{}');
+let crmN=JSON.parse(localStorage.getItem('karz_n')||'{}');
+let expIdx=null,addedUrls=new Set(),sbClient=null;
+
+// Init Supabase
+try{
+  sbClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+  document.getElementById('sb-st').textContent='● Supabase OK';
+  document.getElementById('sb-st').className='sbadge sb-ok';
+  loadFromSupabase();
+}catch(e){console.warn('Supabase init error',e);}
+
+async function loadFromSupabase(){
+  try{
+    const{data:ds}=await sbClient.from('deals').select('*').order('created_at',{ascending:false});
+    if(ds&&ds.length){
+      deals=ds.map(d=>({brand:d.brand,model:d.model,motor:d.fuel_type||'essence',year:d.year,km:d.km,eurPrice:parseFloat(d.eur_price_ht),sellerType:d.seller_type||'Dealer',sellerName:d.seller_name||'—',country:d.country||'DE',dom:d.days_on_market||0,liq:d.liquidity_score||70,nego:parseFloat(d.nego_pct||0.08),link:d.listing_url||'',tags:d.tags||[],addedBy:d.added_by||'—',calc_snapshot:d.calc_snapshot,_sb_id:d.id}));
+      renderDeals();updCnts();
+    }
+  }catch(e){console.warn('Supabase load error',e);}
+}
+
+function sv(){localStorage.setItem('karz_d',JSON.stringify(deals));}
+function svF(){localStorage.setItem('karz_f',JSON.stringify(favs));}
+function svC(){localStorage.setItem('karz_c',JSON.stringify(crmS));localStorage.setItem('karz_n',JSON.stringify(crmN));}
+function co2P(c){if(!c)return 0;const e=c-P('co2t');return e>0?Math.round(e*e*P('co2k')*100):0;}
+function gvaS(c){if(c>200)return 3800;if(c>160)return 2200;if(c>130)return 1200;if(c>117)return 600;return 0;}
+function calcL(eur,spec){
+  const bC=eur*P('fx'),tr=P('tr')*P('fx'),cp=co2P(spec.co2),gva=gvaS(spec.co2),fe=P('fees'),ho=P('homolog');
+  const sub=bC+tr+cp+gva+fe+ho,vat=sub*P('vat'),znz=bC*P('znz'),tot=sub+vat+znz;
+  return{bC,tr,cp,gva,fe,ho,vat,znz,tot};
+}
+function findSpec(makeRaw,modelRaw){
+  for(const[k,s]of Object.entries(SPECS)){
+    const kl=k.toLowerCase();
+    if(kl.startsWith((makeRaw||'').toLowerCase().slice(0,4))){
+      const modelPart=k.split(' ').slice(1).join(' ').toLowerCase();
+      if((modelRaw||'').toLowerCase().includes(modelPart)||modelPart.split(' ').filter(w=>w.length>2).every(w=>(modelRaw||'').toLowerCase().includes(w)))
+        return{key:k,spec:s};
+    }
+  }
+  return null;
+}
+function profD(d){const s=SPECS[d.brand+' '+d.model];return s?Math.round(s.r-calcL(d.eurPrice,s).tot):0;}
+function dId(d){return(d.brand+d.model+d.year+d.eurPrice+(d.link||'')).replace(/\W/g,'').slice(0,40);}
+function getUser(){return localStorage.getItem('karz_user')||'—';}
+
+// ── BUILD URL ────────────────────────────────────────────────────
+function buildUrl(){
+  const make=document.getElementById('s-brand').value;
+  const model=document.getElementById('s-model').value;
+  const cc=document.getElementById('s-country').value||'DE';
+  const cy=CY[cc]||cc;
+  const ymin=document.getElementById('s-ymin').value;
+  const ymax=document.getElementById('s-ymax').value;
+  const kmax=document.getElementById('s-kmax').value;
+  const pmax=document.getElementById('s-pmax').value;
+  let url='https://www.autoscout24.com/lst';
+  if(make)url+='/'+make;
+  if(make&&model)url+='/'+model;
+  const p=new URLSearchParams({atype:'C',cy,ustate:'U',sort:'age',desc:'1'});
+  if(ymin)p.set('fregfrom',ymin);
+  if(ymax)p.set('fregto',ymax);
+  if(kmax)p.set('kmto',kmax);
+  if(pmax)p.set('priceto',pmax);
+  return url+'?'+p.toString();
+}
+
+function updatePreview(){
+  const el=document.getElementById('url-prev');
+  el.textContent='→ '+buildUrl();
+  el.classList.add('show');
+}
+
+function rebuildModels(){
+  const brand=document.getElementById('s-brand').value;
+  const sel=document.getElementById('s-model');
+  sel.innerHTML='<option value="">Tous les modèles</option>';
+  (MODELS[brand]||[]).forEach(m=>{const o=document.createElement('option');o.value=m.s;o.textContent=m.n;sel.appendChild(o);});
+  updatePreview();
+}
+
+// ── SEARCH via Vercel proxy ──────────────────────────────────────
+async function runSearch(){
+  const area=document.getElementById('results-area');
+  const maxItems=parseInt(document.getElementById('s-max').value)||20;
+  const searchUrl=buildUrl();
+
+  area.innerHTML=`<div class="loading-box"><div class="spinner"></div><div style="font-size:13px;font-weight:500;color:#333">Recherche en cours…</div><div style="font-size:11px;color:#aaa;margin-top:6px">Apify scrape AutoScout24 · ~30–60 secondes</div></div>`;
+  document.getElementById('search-msg').textContent='';
+  document.getElementById('apify-st').textContent='⟳ En cours…';
+  document.getElementById('apify-st').className='sbadge sb-no';
+
+  try{
+    // Appel via notre proxy Vercel — résout le problème CORS
+    const resp=await fetch('/api/search',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({searchUrl,maxItems})
+    });
+
+    if(!resp.ok){
+      const err=await resp.json().catch(()=>({error:`HTTP ${resp.status}`}));
+      throw new Error(err.error||`HTTP ${resp.status}`);
+    }
+
+    const{items,actor}=await resp.json();
+    document.getElementById('apify-st').textContent='● Apify OK';
+    document.getElementById('apify-st').className='sbadge sb-ok';
+    renderResults(items,actor);
+  }catch(e){
+    document.getElementById('apify-st').textContent='⚠ Apify erreur';
+    document.getElementById('apify-st').className='sbadge';
+    document.getElementById('apify-st').style.background='#FCEBEB';
+    document.getElementById('apify-st').style.borderColor='#E24B4A';
+    document.getElementById('apify-st').style.color='#791F1F';
+    area.innerHTML=`<div class="error-box">
+      <b>Erreur :</b> ${e.message}<br><br>
+      <b>Solutions :</b><br>
+      1. Vérifiez vos crédits sur <a href="https://console.apify.com/billing" target="_blank" style="color:#cc0000">console.apify.com/billing</a><br>
+      2. Essayez avec moins de résultats (5–10)<br>
+      3. Vérifiez que le token APIFY_TOKEN est bien configuré dans les variables d'environnement Vercel<br><br>
+      <a href="${searchUrl}" target="_blank" style="color:#cc0000">↗ Ouvrir manuellement sur AutoScout24</a>
+    </div>`;
+  }
+}
+
+function renderResults(items,actor){
+  const area=document.getElementById('results-area');
+  if(!items||!items.length){area.innerHTML='<div class="no-data">Aucun résultat. Élargissez les critères.</div>';return;}
+
+  const processed=items.map(item=>{
+    const price=parseFloat(item.price||item.priceEur||item.publicPrice||item.tracking?.price||0);
+    const km=parseInt(item.mileage||item.km||item.tracking?.mileage||0);
+    const year=parseInt(item.firstRegistrationYear||item.year||item.tracking?.first_registration?.slice(0,4)||0);
+    const make=item.make||item.vehicle?.make||item.brand||'';
+    const model=item.model||item.vehicle?.model||'';
+    const fuel=(item.fuelType||item.fuel_type||item.vehicle?.fuelType||'').toLowerCase();
+    const seller=item.dealerName||item.seller?.name||item.sellerName||'—';
+    const country=(item.location?.countryCode||item.country||'DE').toUpperCase();
+    const url=item.url||item.listingUrl||item.adUrl||'';
+    if(!price||price<5000)return null;
+    const found=findSpec(make,model);
+    if(!found)return{price,km,year,make,model,fuel,seller,country,url,spec:null,margin:null};
+    const l=calcL(price,found.spec);
+    return{price,km,year,make,model:found.key.split(' ').slice(1).join(' '),brand:found.key.split(' ')[0]==='Land'?'Land Rover':found.key.split(' ')[0],fuel,seller,country,url,spec:found.spec,specKey:found.key,l,margin:Math.round(found.spec.r-l.tot)};
+  }).filter(Boolean).sort((a,b)=>(b.margin||0)-(a.margin||0));
+
+  const pos=processed.filter(r=>r.spec&&r.margin>0);
+  area.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
+      <span style="font-size:12px;font-weight:600;color:#333">${processed.length} annonces trouvées${actor?` <span style="font-size:10px;color:#aaa;font-weight:400">via ${actor}</span>`:''}</span>
+      <span style="font-size:11px;color:#aaa">${pos.length} avec marge positive</span>
+    </div>
+    <div id="res-list"></div>`;
+
+  const list=document.getElementById('res-list');
+  processed.forEach((r,i)=>{
+    const flag=FLAGS[r.country]||'🌍';
+    const fuelLabel={gasoline:'Essence',petrol:'Essence',diesel:'Diesel',electric:'Électrique',hybrid:'Hybride',essence:'Essence'}[r.fuel]||r.fuel||'';
+    const alreadyAdded=addedUrls.has(r.url);
+    const mc=!r.margin||r.margin<=0?'neg':r.margin<10000?'warn':'profit';
+    const card=document.createElement('div');card.className='result-card';
+    card.innerHTML=`
+      <div class="rc-main">
+        <div class="rc-name">${flag} ${r.make||r.brand||''} ${r.model} ${r.year} <span class="badge bg-gray" style="font-size:9px;vertical-align:middle">${fuelLabel}</span></div>
+        <div class="rc-sub">
+          <span>${(r.km||0).toLocaleString('fr-CH')} km</span>
+          <span style="color:#ddd">·</span><span>${r.seller}</span>
+          <span style="color:#ddd">·</span><span>${CNAMES[r.country]||r.country}</span>
+        </div>
+        ${r.url?`<a class="rc-link" href="${r.url}" target="_blank">↗ Voir l'annonce sur AutoScout24</a>`:''}
+        <div class="rc-fins">
+          <div class="rc-fin"><div class="rc-fin-lbl">Prix <span class="badge bg-ht">HT</span></div><div class="rc-fin-val">€${Math.round(r.price).toLocaleString('fr-CH')}</div></div>
+          ${r.l?`<div class="rc-fin"><div class="rc-fin-lbl">Landed GVA <span class="badge bg-ttc">TTC</span></div><div class="rc-fin-val">CHF ${Math.round(r.l.tot).toLocaleString('fr-CH')}</div></div>`:''}
+          ${r.spec?`<div class="rc-fin"><div class="rc-fin-lbl">Revente CH <span class="badge bg-hyp">Hyp.</span></div><div class="rc-fin-val">CHF ${r.spec.r.toLocaleString('fr-CH')}</div></div>`:''}
+          ${r.margin!==null?`<div class="rc-fin"><div class="rc-fin-lbl">Marge nette <span class="badge bg-ttc">TTC</span></div><div class="rc-fin-val ${mc}">CHF ${(r.margin||0).toLocaleString('fr-CH')}</div></div>`:''}
+        </div>
+        ${r.l?`<div class="rc-calc">
+          Base CHF ${Math.round(r.l.bC).toLocaleString('fr-CH')}
+          + Transport CHF ${Math.round(r.l.tr).toLocaleString('fr-CH')} <span class="badge bg-hyp">Hyp.</span>
+          + CO2 CHF ${r.l.cp.toLocaleString('fr-CH')} <span class="badge bg-law">Loi</span>
+          + GVA CHF ${r.l.gva.toLocaleString('fr-CH')} <span class="badge bg-law">Loi</span>
+          + TVA+ZNZ CHF ${Math.round(r.l.vat+r.l.znz).toLocaleString('fr-CH')} <span class="badge bg-law">Loi</span>
+          + Frais CHF ${(r.l.fe+r.l.ho).toLocaleString('fr-CH')} <span class="badge bg-hyp">Hyp.</span>
+        </div>`:''}
+      </div>
+      <div class="rc-actions">
+        <button class="add-btn${alreadyAdded?' added':''}" ${alreadyAdded||!r.spec||!r.margin||r.margin<=0?'disabled':''}>
+          ${alreadyAdded?'✓ Ajouté':!r.spec?'Non reconnu':!r.margin||r.margin<=0?'Marge neg.':'+ Ajouter'}
+        </button>
+        <button class="skip-btn" onclick="this.closest('.result-card').remove()">Ignorer</button>
+      </div>`;
+
+    card.querySelector('.add-btn').addEventListener('click',async()=>{
+      if(alreadyAdded||!r.spec||!r.margin||r.margin<=0)return;
+      const d={brand:r.brand||r.make,model:r.model,motor:r.fuel||'essence',year:r.year,km:r.km,eurPrice:Math.round(r.price),sellerType:'Official Dealer',sellerName:r.seller||'—',country:r.country,dom:0,liq:70,nego:0.08,link:r.url,tags:[],addedBy:getUser(),calc_snapshot:{fx:P('fx'),tr:P('tr'),fees:P('fees'),homolog:P('homolog'),at:new Date().toISOString()}};
+      deals.unshift(d);sv();addedUrls.add(r.url);
+      const btn=card.querySelector('.add-btn');btn.textContent='✓ Ajouté';btn.classList.add('added');btn.disabled=true;
+      updCnts();
+      // Sync to Supabase
+      if(sbClient){
+        try{
+          await sbClient.from('deals').insert({brand:d.brand,model:d.model,fuel_type:d.motor,year:d.year,km:d.km,eur_price_ht:d.eurPrice,seller_type:d.sellerType,seller_name:d.sellerName,country:d.country,days_on_market:d.dom,liquidity_score:d.liq,nego_pct:d.nego,listing_url:d.link,tags:d.tags,added_by:d.addedBy,calc_snapshot:d.calc_snapshot});
+        }catch(e){console.warn('Supabase insert error',e);}
+      }
+    });
+    list.appendChild(card);
+  });
+}
+
+// ── HYPOTHÈSES ────────────────────────────────────────────────────
+function toggleHyp(){const p=document.getElementById('hyp-panel');p.classList.toggle('show');if(p.classList.contains('show'))renderHyp();}
+function renderHyp(){
+  const tbody=document.getElementById('hyp-tbody');tbody.innerHTML='';
+  Object.entries(PARAMS).forEach(([key,p])=>{
+    const tr=document.createElement('tr');tr.dataset.key=key;
+    const tag=p.isHyp?`<span class="badge bg-hyp">Hypothèse</span>`:p.legalRef?`<span class="badge bg-law">Loi</span>`:`<span class="badge bg-green">Confirmé</span>`;
+    tr.innerHTML=`<td style="font-weight:500">${p.label} <span style="font-size:9px;color:#aaa">(${p.unit})</span></td><td><input class="hi${p.isHyp?'':' conf'}" type="number" value="${p.value}" step="any" ${p.isHyp?'':'readonly'} /></td><td>${tag}</td><td>${p.legalRef?`<span style="font-size:10px;color:#185FA5;font-weight:500">${p.legalRef}</span><br><span style="font-size:9px;color:#aaa">${p.source}</span>`:`<input class="si" value="${p.source||''}" placeholder="Source / devis…" />`}</td><td>${p.isHyp?`<input style="font-size:10px;padding:2px 5px;border:0.5px solid #ddd;border-radius:3px;width:70px" value="${p.by}" placeholder="Prénom" />`:`<span style="font-size:10px;color:#aaa">${p.by}</span>`}</td><td style="font-size:10px;color:#aaa">${p.at}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+function saveHyp(){
+  document.querySelectorAll('#hyp-tbody tr[data-key]').forEach(tr=>{
+    const key=tr.dataset.key;const p=PARAMS[key];if(!p||!p.isHyp)return;
+    const v=tr.querySelector('.hi');const s=tr.querySelector('.si');const b=tr.querySelector('input[placeholder="Prénom"]');
+    if(v)p.value=parseFloat(v.value)||p.value;
+    if(s)p.source=s.value||p.source;
+    if(b)p.by=b.value||p.by;
+    p.at=new Date().toLocaleDateString('fr-CH');
+  });
+  document.getElementById('hyp-panel').classList.remove('show');
+  renderDeals();
+}
+
+// ── DEALS ─────────────────────────────────────────────────────────
+function updCnts(){const v=deals.filter(d=>profD(d)>0);const fc=Object.values(favs).filter(Boolean).length;document.getElementById('deal-cnt').textContent=v.length;document.getElementById('fav-cnt').textContent=fc;}
+function toggleFav(e,id){e.stopPropagation();favs[id]=!favs[id];if(!favs[id])delete favs[id];svF();renderDeals();renderPipeline();}
+function delDeal(e,idx){e.stopPropagation();if(!confirm('Supprimer ce deal ?'))return;deals.splice(idx,1);sv();expIdx=null;renderDeals();}
+
+function renderDeals(){
+  updCnts();
+  const sorted=deals.map((d,i)=>({...d,_pr:profD(d),_i:i})).filter(d=>d._pr>0).sort((a,b)=>b._pr-a._pr);
+  const pr=sorted.map(d=>d._pr);const avg=pr.length?Math.round(pr.reduce((a,b)=>a+b,0)/pr.length):0;const best=pr.length?Math.max(...pr):0;const fc=Object.values(favs).filter(Boolean).length;
+  document.getElementById('s-tot').textContent=sorted.length;
+  document.getElementById('s-avg').textContent=avg?'CHF '+avg.toLocaleString('fr-CH'):' — ';
+  document.getElementById('s-best').textContent=best?'CHF '+best.toLocaleString('fr-CH'):' — ';
+  document.getElementById('s-fav').textContent=fc;
+  const c=document.getElementById('deal-list');c.innerHTML='';
+  if(!sorted.length){c.innerHTML='<div class="no-data">Aucun deal — lancez une recherche.</div>';return;}
+  sorted.forEach((d,i)=>{
+    const spec=SPECS[d.brand+' '+d.model];if(!spec)return;
+    const l=calcL(d.eurPrice,spec);const p=d._pr,pct=((p/spec.r)*100).toFixed(1);
+    const id=dId(d),isFav=!!favs[id],isExp=expIdx===i;
+    const flag=FLAGS[d.country||'DE']||'🌍';
+    const card=document.createElement('div');card.className='deal-card'+(isExp?' expanded':'')+(isFav?' fav':'');
+    card.innerHTML=`
+      <div style="display:flex;align-items:flex-start;gap:9px">
+        <div style="font-size:11px;font-weight:600;${i<3?'color:#1D9E75':'color:#ccc'};min-width:20px;padding-top:2px;flex-shrink:0">#${i+1}</div>
+        <span style="font-size:15px;flex-shrink:0;padding-top:1px">${flag}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:#111">${d.brand} ${d.model} ${d.year} <span class="badge bg-gray" style="font-size:9px;vertical-align:middle">${d.motor||''}</span></div>
+          <div style="font-size:11px;color:#888;margin-top:3px;display:flex;flex-wrap:wrap;gap:5px">
+            <span style="font-weight:600;color:#333">${d.sellerName}</span>
+            <span style="color:#ddd">·</span><span>${(d.km||0).toLocaleString('fr-CH')} km</span>
+            ${d.addedBy&&d.addedBy!=='—'?`<span style="color:#ccc">· Par ${d.addedBy}</span>`:''}
+          </div>
+          ${d.link?`<a href="${d.link}" onclick="event.stopPropagation()" target="_blank" style="font-size:11px;color:#185FA5;text-decoration:none">↗ Voir l'annonce</a>`:''}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:10px;color:#aaa">Marge <span class="badge bg-ttc">TTC</span></div>
+          <div style="font-size:16px;font-weight:700;color:#0F6E56">CHF ${p.toLocaleString('fr-CH')}</div>
+          <div style="font-size:10px;color:#aaa">${pct}%</div>
+        </div>
+        <button class="fav-btn${isFav?' on':''}" onclick="toggleFav(event,'${id}')">★</button>
+      </div>
+      <div class="fins">
+        <div class="fb"><div class="fl">Prix achat <span class="badge bg-ht">HT</span></div><div class="fv">€${(d.eurPrice||0).toLocaleString('fr-CH')}</div></div>
+        <div class="fb"><div class="fl">Landed GVA <span class="badge bg-ttc">TTC</span></div><div class="fv">CHF ${Math.round(l.tot).toLocaleString('fr-CH')}</div></div>
+        <div class="fb"><div class="fl">Revente CH <span class="badge bg-hyp">Hyp.</span></div><div class="fv">CHF ${spec.r.toLocaleString('fr-CH')}</div></div>
+      </div>
+      <div class="trans">
+        <div style="font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#aaa;margin-bottom:9px;font-weight:600">Rapport de transparence complet <span class="badge bg-ttc">TTC</span></div>
+        <div class="tr-row"><span class="tr-lbl">Prix EU HT → CHF (×${P('fx')} <span class="badge bg-hyp">Hyp.</span>)</span><span>CHF ${Math.round(l.bC).toLocaleString('fr-CH')}</span></div>
+        <div class="tr-row"><span class="tr-lbl">Transport €${P('tr')} <span class="badge bg-hyp">Hyp.</span></span><span style="color:#cc0000">+CHF ${Math.round(l.tr).toLocaleString('fr-CH')}</span></div>
+        <div class="tr-row"><span class="tr-lbl">CO2 fédéral ${spec.co2} g/km <span class="badge bg-law">LCO2</span></span><span style="color:#cc0000">+CHF ${l.cp.toLocaleString('fr-CH')}</span></div>
+        <div class="tr-row"><span class="tr-lbl">Surtaxe CO2 Genève <span class="badge bg-law">LRVM GE</span></span><span style="color:#cc0000">+CHF ${l.gva.toLocaleString('fr-CH')}</span></div>
+        <div class="tr-row"><span class="tr-lbl">Homologation <span class="badge bg-hyp">Hyp.</span></span><span style="color:#cc0000">+CHF ${l.ho.toLocaleString('fr-CH')}</span></div>
+        <div class="tr-row"><span class="tr-lbl">Frais admin/courtage <span class="badge bg-hyp">Hyp.</span></span><span style="color:#cc0000">+CHF ${l.fe.toLocaleString('fr-CH')}</span></div>
+        <div class="tr-row"><span class="tr-lbl">TVA Suisse 7.7% <span class="badge bg-law">LIFD</span></span><span style="color:#cc0000">+CHF ${Math.round(l.vat).toLocaleString('fr-CH')}</span></div>
+        <div class="tr-row"><span class="tr-lbl">Taxe ZNZ 4% <span class="badge bg-law">LRVM GE</span></span><span style="color:#cc0000">+CHF ${Math.round(l.znz).toLocaleString('fr-CH')}</span></div>
+        <div class="tr-row"><span class="tr-lbl"><b>= Total Landed TTC</b></span><span><b>CHF ${Math.round(l.tot).toLocaleString('fr-CH')}</b></span></div>
+        <div class="tr-row"><span class="tr-lbl">Revente CH TTC <span class="badge bg-hyp">Hyp. → vérifier AutoScout24.ch</span></span><span>CHF ${spec.r.toLocaleString('fr-CH')}</span></div>
+        <div class="tr-row"><span><b>MARGE NETTE TTC</b></span><span><b>CHF ${p.toLocaleString('fr-CH')} (${pct}%)</b></span></div>
+        ${d.calc_snapshot?`<div style="font-size:9px;color:#aaa;margin-top:7px;padding:5px 8px;background:#fff;border-radius:4px;border:0.5px solid #eee">Snapshot paramètres — FX: ${d.calc_snapshot.fx} · Transport: €${d.calc_snapshot.tr} · Calculé le ${new Date(d.calc_snapshot.at||Date.now()).toLocaleDateString('fr-CH')}</div>`:''}
+      </div>
+      <div class="nego">
+        <div style="font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#aaa;margin-bottom:9px;font-weight:600">Négociateur inversé</div>
+        <div class="ngrid">
+          <div class="ni"><label>Marge cible CHF TTC</label><input type="number" id="nm-${i}-mg" value="20000" oninput="updN(${i},${d._i})" /></div>
+          <div class="ni"><label>Revente estimée CHF TTC</label><input type="number" id="nm-${i}-rv" value="${spec.r}" oninput="updN(${i},${d._i})" /></div>
+          <div class="ni"><label>Potentiel négo</label><select id="nm-${i}-ng" onchange="updN(${i},${d._i})"><option value="0.05">-5%</option><option value="0.08" selected>-8%</option><option value="0.10">-10%</option><option value="0.12">-12%</option></select></div>
+          <div class="ni"><label>Landed actuel</label><input value="CHF ${Math.round(l.tot).toLocaleString('fr-CH')}" readonly style="background:#f0f0f0;color:#888" /></div>
+        </div>
+        <div style="font-size:10px;color:#aaa;margin-top:6px;padding:6px 9px;background:#fff;border-radius:4px;border:0.5px solid #eee" id="nm-${i}-exp"></div>
+        <div class="nres" id="nm-${i}-res"></div>
+      </div>
+      <button class="del-btn" onclick="delDeal(event,${d._i})">Supprimer ce deal</button>`;
+    card.addEventListener('click',e=>{if(['BUTTON','A','INPUT','SELECT'].includes(e.target.tagName))return;expIdx=isExp?null:i;renderDeals();if(!isExp)setTimeout(()=>updN(i,d._i),20);});
+    c.appendChild(card);
+    if(isExp)setTimeout(()=>updN(i,d._i),20);
+  });
+}
+
+function updN(ci,oi){
+  const mg=parseFloat(document.getElementById('nm-'+ci+'-mg')?.value)||20000;
+  const rv=parseFloat(document.getElementById('nm-'+ci+'-rv')?.value)||140000;
+  const ng=parseFloat(document.getElementById('nm-'+ci+'-ng')?.value)||0.08;
+  const d=deals[oi];if(!d)return;const spec=SPECS[d.brand+' '+d.model];if(!spec)return;
+  const fix=P('tr')*P('fx')+P('fees')+P('homolog');
+  const cp=co2P(spec.co2),gva=gvaS(spec.co2);
+  const base=(rv-mg-fix-cp-gva)/(1+P('vat')+P('znz'));
+  const maxE=Math.round(base/P('fx')),openE=Math.round(maxE*(1-ng));
+  const exp=document.getElementById('nm-'+ci+'-exp');
+  if(exp)exp.textContent=ng<=0.06?'Official Dealer récent — jouer relation/volume.':ng<=0.08?'Dealer standard — -5 à -8% avec engagement ferme.':ng<=0.10?'Pro dealer — -8 à -10% en jouant délai + cash.':'Vendeur sous pression — jusqu\'à -12%.';
+  const el=document.getElementById('nm-'+ci+'-res');if(!el)return;
+  el.innerHTML=`
+    <div class="nb2"><div class="nb2-lbl">Prix max acceptable HT</div><div class="nb2-val blue">€${maxE.toLocaleString('fr-CH')}</div><div class="nb2-sub">Pour CHF ${mg.toLocaleString('fr-CH')} TTC garantis</div></div>
+    <div class="nb2"><div class="nb2-lbl">Ouverture négo (-${Math.round(ng*100)}%)</div><div class="nb2-val green">€${openE.toLocaleString('fr-CH')}</div><div class="nb2-sub">Limite absolue : €${maxE.toLocaleString('fr-CH')}</div></div>
+    <div class="nb2"><div class="nb2-lbl">Coûts fixes <span class="badge bg-hyp">Hyp.</span></div><div class="nb2-val" style="font-size:13px">CHF ${Math.round(fix).toLocaleString('fr-CH')}</div></div>
+    <div class="nb2"><div class="nb2-lbl">CO2 + GVA <span class="badge bg-law">Loi</span></div><div class="nb2-val red" style="font-size:13px">CHF ${Math.round(cp+gva).toLocaleString('fr-CH')}</div></div>`;
+}
+
+// ── CRM ───────────────────────────────────────────────────────────
+const CRM_S=['Watchlist','Contact','Négociation','Clôturé'];
+const CRM_TC={Watchlist:'#0C447C',Contact:'#633806',Négociation:'#3C3489',Clôturé:'#085041'};
+const CRM_BG={Watchlist:'#E6F1FB',Contact:'#FAEEDA',Négociation:'#EEEDFE',Clôturé:'#E1F5EE'};
+function renderPipeline(){
+  const c=document.getElementById('crm-grid');c.innerHTML='';
+  const all=deals.map((d,i)=>({...d,_pr:profD(d),_i:i})).filter(d=>d._pr>0&&favs[dId(d)]);
+  CRM_S.forEach(stage=>{
+    const col=document.createElement('div');col.className='crm-col';
+    const sd=all.filter(d=>{const s=crmS[dId(d)];return(!s&&stage==='Watchlist')||s===stage;});
+    col.innerHTML=`<div class="crm-ct" style="color:${CRM_TC[stage]}"><span>${stage}</span><span class="crm-cnt">${sd.length}</span></div>`;
+    if(!sd.length){const e=document.createElement('div');e.style.cssText='font-size:10px;color:#aaa;text-align:center;padding:9px 0';e.textContent='—';col.appendChild(e);}
+    sd.forEach(d=>{
+      const id=dId(d),flag=FLAGS[d.country||'DE']||'🌍',notes=crmN[id]||[];
+      const item=document.createElement('div');item.className='crm-item';
+      const btns=CRM_S.filter(s=>s!==stage).map(s=>`<button class="csb" style="background:${CRM_BG[s]};color:${CRM_TC[s]};border-color:${CRM_TC[s]}40" onclick="moveCRM('${id}','${s}')">${s}</button>`).join('');
+      item.innerHTML=`<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px"><span style="font-size:14px">${flag}</span><div style="font-size:11px;font-weight:600;color:#111">${d.brand} ${d.model}</div></div><div style="font-size:10px;color:#888">${d.year} · ${(d.km||0).toLocaleString('fr-CH')} km · ${d.sellerName}</div><div style="font-size:12px;font-weight:700;color:#0F6E56;margin-top:4px">CHF ${d._pr.toLocaleString('fr-CH')} TTC</div>${d.link?`<a href="${d.link}" target="_blank" style="font-size:10px;color:#185FA5;text-decoration:none;display:block;margin-top:3px">↗ Annonce</a>`:''}<div style="display:flex;gap:2px;margin-top:6px;flex-wrap:wrap">${btns}</div><div style="display:flex;gap:5px;margin-top:5px"><input class="cni" id="cn-${id}" placeholder="Note…" onclick="event.stopPropagation()" /><button class="cna" onclick="addNote('${id}')">+</button></div>${notes.length?`<div style="margin-top:4px">${notes.map(n=>`<div style="font-size:10px;color:#888;padding:2px 0;border-bottom:0.5px solid #f0f0f0">${n}</div>`).join('')}</div>`:''}`; 
+      col.appendChild(item);
+    });
+    c.appendChild(col);
+  });
+  if(!all.length){const m=document.createElement('div');m.style.cssText='grid-column:1/-1;text-align:center;padding:28px;color:#aaa;font-size:12px';m.textContent='Aucun favori — cliquez ★ sur un deal pour le suivre ici.';c.appendChild(m);}
+}
+function moveCRM(id,s){crmS[id]=s;svC();renderPipeline();}
+function addNote(id){const inp=document.getElementById('cn-'+id);if(!inp||!inp.value.trim())return;if(!crmN[id])crmN[id]=[];const now=new Date();crmN[id].unshift('['+now.toLocaleDateString('fr-CH',{day:'2-digit',month:'2-digit'})+'] '+inp.value.trim());inp.value='';svC();renderPipeline();}
+
+function buildAdminTable(){
+  const tbody=document.getElementById('adm-tbody');tbody.innerHTML='';
+  Object.entries(SPECS).forEach(([key,s])=>{const tr=document.createElement('tr');tr.innerHTML=`<td style="padding:4px 8px;border-bottom:0.5px solid #f0f0f0">${key}</td><td style="padding:4px 8px;border-bottom:0.5px solid #f0f0f0">${s.co2}</td><td style="padding:4px 8px;border-bottom:0.5px solid #f0f0f0"><input class="isml" type="number" value="${s.r}" onchange="SPECS['${key}'].r=+this.value;renderDeals()" /></td>`;tbody.appendChild(tr);});
+}
+function saveName(){const u=document.getElementById('user-inp').value.trim();if(u)localStorage.setItem('karz_user',u);document.getElementById('name-msg').textContent='✓ Sauvegardé';document.getElementById('name-msg').style.color='#0F6E56';}
+function resetSearch(){['s-brand','s-model','s-ymin','s-ymax','s-kmax','s-pmax'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('results-area').innerHTML='';document.getElementById('url-prev').classList.remove('show');}
+function showPage(name,btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));document.getElementById('page-'+name).classList.add('active');if(btn)btn.classList.add('active');if(name==='pipeline')renderPipeline();if(name==='deals')renderDeals();}
+
+// Init
+const savedUser=localStorage.getItem('karz_user');if(savedUser)document.getElementById('user-inp').value=savedUser;
+buildAdminTable();updCnts();renderDeals();updatePreview();
+</script>
+</body>
+</html>
