@@ -173,11 +173,11 @@ export async function runSearch() {
   // Calcul avec comparables CH async
   const stateRef = state;
   const dbMod = window.KARZ.db;
+  const fxUsed = stateRef.params?.FX || 1.05;
   let results = await Promise.all(raw.map(async listing => {
     const deal = _listingToDeal(listing);
-    // computeDealAsync charge les comparables CH depuis Supabase
     const calc = await window.KARZ.calc.computeDealAsync(deal, stateRef, dbMod);
-    return { listing, deal, calc };
+    return { listing, deal, calc, fxUsed };
   }));
 
   // Filtre carburant côté client
@@ -248,83 +248,118 @@ function _normalizeBrand(b) {
 function _renderResultCard(r, idx) {
   const { listing, calc } = r;
   const flag     = FLAGS[listing.country] || '🌍';
-  const marge    = calc.marge;
-  const margeCls = (marge && marge > 0) ? 'profit' : (marge && marge < 0) ? 'loss' : '';
+  const marge    = (calc.marge !== null && calc.marge !== undefined) ? Math.round(calc.marge) : null;
+  const margeCls = marge !== null ? (marge > 0 ? 'profit' : 'loss') : '';
   const resale   = calc.resale;
+  const landed   = calc.landed;
+  const spec     = calc.spec;
+  const tvaMode  = calc.tvaMode || 'A';
 
-  // Badges niveau de fiabilité du prix de revente
-  const levelColors = { 0:'#185FA5',1:'#0F6E56',2:'#0F6E56',3:'#854F0B',4:'#854F0B',5:'#888',99:'#cc0000' };
-  const levelLabels = { 0:'Eurotax',1:'Comparables',2:'Comparables',3:'Comparables élargis',4:'Comparables élargis',5:'Dépréciation',99:'—' };
+  // Niveau de confiance du benchmark
+  const levelColors = {0:'#185FA5',1:'#0F6E56',2:'#0F6E56',3:'#854F0B',4:'#854F0B',5:'#888',99:'#cc0000'};
+  const levelLabels = {0:'Eurotax',1:'Comparables filtrés',2:'Comparables',3:'Comparables élargis',4:'Comparables élargis',5:'Dépréciation estimée',99:'—'};
+
+  // Section landed cost détaillée
+  const vatOriginPct  = Math.round((calc.vatOrigin || 0.20) * 100);
+  const vatDeduction  = calc.isPro ? Math.round((calc.priceTTC_EUR || 0) - (calc.priceHT_EUR || 0)) : 0;
+  const co2           = landed?.co2;
+
+  const landedHTML = landed ? `
+    <div class="detail-section">
+      <div class="ds-title">LANDED COST</div>
+      <div class="ds-row"><span>Prix annonce</span><span>€${(calc.priceTTC_EUR||0).toLocaleString('fr-CH')} TTC</span></div>
+      ${calc.isPro ? `
+      <div class="ds-row deduct"><span>− TVA ${listing.country||'EU'} ${vatOriginPct}%</span><span>− €${vatDeduction.toLocaleString('fr-CH')}</span></div>
+      <div class="ds-row bold"><span>= Prix HT</span><span>€${(calc.priceHT_EUR||0).toLocaleString('fr-CH')} HT</span></div>` : `
+      <div class="ds-row note"><span>Vendeur particulier — TVA non déductible</span><span></span></div>`}
+      <div class="ds-row"><span>× FX EUR/CHF ${(r.fxUsed||1.05).toFixed(4)}</span><span>= CHF ${(calc.priceHT_CHF||0).toLocaleString('fr-CH')}</span></div>
+      <div class="ds-sep"></div>
+      <div class="ds-row cost"><span>+ Transport</span><span>+ CHF ${(landed.transport||0).toLocaleString('fr-CH')}</span></div>
+      <div class="ds-row cost"><span>+ Impôt fédéral 4% <span class="ds-src">LJAUTO</span></span><span>+ CHF ${(landed.autoTax||0).toLocaleString('fr-CH')}</span></div>
+      <div class="ds-row cost"><span>+ Frais fixes <span class="ds-src">OFDF CHF 180</span></span><span>+ CHF ${(landed.fixedFees||0).toLocaleString('fr-CH')}</span></div>
+      <div class="ds-row ${tvaMode==='B'?'zero':'cost'}">
+        <span>+ TVA CH 8.1% <span class="ds-src">${tvaMode==='B'?'Mode B — récupérable':'Mode A — définitive'}</span></span>
+        <span>${tvaMode==='B'?'CHF 0 net':'+ CHF '+(landed.vatInLanded||0).toLocaleString('fr-CH')}</span>
+      </div>
+      <div class="ds-row ${co2?.penalty>0?'cost':co2?.exempt?'zero':''}">
+        <span>+ CO2 fédéral OFEN 2025
+          ${co2?.exempt ? `<span class="ds-src ok">✓ Exempté — ${co2.reason}</span>` :
+            co2?.couldBeExempt ? `<span class="ds-src warn">⚠ Pire cas — vérifier km &gt;5 000</span>` : ''}
+        </span>
+        <span>${co2?.penalty>0 ? '+ CHF '+(co2.penalty).toLocaleString('fr-CH') : 'CHF 0'}</span>
+      </div>
+      <div class="ds-sep"></div>
+      <div class="ds-row total"><span>= LANDED NET</span><span>CHF ${(landed.total||0).toLocaleString('fr-CH')}</span></div>
+    </div>` : '';
+
+  // Section revente CH
+  const resaleHTML = resale ? `
+    <div class="detail-section">
+      <div class="ds-title">REVENTE CH <span class="ds-level" style="color:${levelColors[resale.level]||'#888'}">${levelLabels[resale.level]||'—'}</span></div>
+      ${resale.price ? `
+      <div class="ds-note">${resale.label}</div>
+      <div class="rs-stats-grid">
+        <div class="rs-stat-item primary">
+          <div class="rs-stat-l">P25 <span class="rs-cible">cible revente</span></div>
+          <div class="rs-stat-v">CHF ${(resale.p25||0).toLocaleString('fr-CH')}</div>
+        </div>
+        ${resale.p50 ? `<div class="rs-stat-item"><div class="rs-stat-l">Médiane</div><div class="rs-stat-v">CHF ${resale.p50.toLocaleString('fr-CH')}</div></div>` : ''}
+        ${resale.mean ? `<div class="rs-stat-item"><div class="rs-stat-l">Moyenne</div><div class="rs-stat-v">CHF ${resale.mean.toLocaleString('fr-CH')}</div></div>` : ''}
+        ${resale.p75 ? `<div class="rs-stat-item"><div class="rs-stat-l">P75</div><div class="rs-stat-v">CHF ${resale.p75.toLocaleString('fr-CH')}</div></div>` : ''}
+      </div>
+      ${resale.isHypothesis ? `<div class="ds-note warn">⚠ Estimation — données CH insuffisantes pour ce profil</div>` : ''}
+      ${resale.comparablesUrl ? `<a class="rc-comparables-link" href="${resale.comparablesUrl}" target="_blank">↗ Voir les ${resale.n} annonces comparables sur AutoScout24.ch</a>` : ''}
+      ` : `<div class="ds-note warn">⚠ Benchmark CH indisponible — saisir la cote Eurotax après ajout au pipeline</div>`}
+    </div>` : '';
+
+  // Marge finale
+  const margeHTML = `
+    <div class="detail-marge ${margeCls}">
+      <span>MARGE ${tvaMode==='B'?'NETTE HT (Mode B)':'NETTE TTC (Mode A)'}</span>
+      <span class="marge-val">${
+        calc.margeBlocked ? '⚠ Benchmark indisponible' :
+        marge !== null ? 'CHF '+(marge>=0?'+':'')+marge.toLocaleString('fr-CH') : '—'
+      }</span>
+    </div>`;
 
   const card = document.createElement('div');
   card.className = 'result-card';
+  card.style.cursor = 'pointer';
+
   card.innerHTML = `
-    <div class="rc-header">
-      <div class="rc-rank">#${idx + 1}</div>
+    <div class="rc-header" onclick="this.closest('.result-card').classList.toggle('expanded')">
+      <div class="rc-rank">#${idx+1}</div>
       <span class="rc-flag">${flag}</span>
       <div class="rc-info">
-        <div class="rc-name">${listing.model_full || listing.brand + ' ' + listing.model_slug} ${listing.year || '—'}</div>
+        <div class="rc-name">${listing.model_full||listing.brand+' '+listing.model_slug} ${listing.year||'—'}</div>
         <div class="rc-meta">
-          ${listing.km ? listing.km.toLocaleString('fr-CH') + ' km' : '—'} ·
-          ${listing.fuel_type ? listing.fuel_type : ''} ·
-          ${listing.days_online ? listing.days_online + 'j' : ''} ·
-          ${listing.seller_type === 'pro' ? '<span class="badge bpro">Pro</span>' : '<span class="badge bpriv">Particulier</span>'}
-          ${listing.seller_name && listing.seller_name !== '—' ? '· ' + listing.seller_name : ''}
+          ${listing.km ? listing.km.toLocaleString('fr-CH')+' km' : '—'} ·
+          ${listing.fuel_type||'—'} ·
+          ${listing.seller_type==='pro'?'<span class="badge bpro">Pro</span>':'<span class="badge bpriv">Particulier</span>'}
+          ${listing.seller_name&&listing.seller_name!=='—'?' · '+listing.seller_name:''}
         </div>
       </div>
       <div class="rc-right">
-        <div class="rc-price">€${(listing.price_eur_ttc || 0).toLocaleString('fr-CH')}</div>
-        <div class="rc-marge ${margeCls}">
-          ${calc.margeBlocked
-            ? '<span class="warn-sm">⚠ Données insuffisantes</span>'
-            : (marge !== null && marge !== undefined)
-              ? `CHF ${Math.round(marge).toLocaleString('fr-CH')}`
-              : '—'}
+        <div class="rc-price">€${(listing.price_eur_ttc||0).toLocaleString('fr-CH')} <span class="rc-ttc">TTC</span></div>
+        <div class="rc-marge-preview ${margeCls}">
+          ${calc.margeBlocked ? '<span class="warn-sm">⚠ Benchmark indisponible</span>' :
+            marge !== null ? 'CHF '+(marge>=0?'+':'')+marge.toLocaleString('fr-CH') : '—'}
         </div>
       </div>
-      ${listing.listing_url ? `<a class="rc-link" href="${listing.listing_url}" target="_blank" onclick="event.stopPropagation()">↗</a>` : ''}
+      <div class="rc-chevron">▼</div>
+      ${listing.listing_url?`<a class="rc-link" href="${listing.listing_url}" target="_blank" onclick="event.stopPropagation()">↗</a>`:''}
     </div>
 
-    ${resale && resale.price ? `
-    <div class="rc-resale-detail">
-      <div class="rc-resale-header">
-        <span class="resale-level-badge" style="color:${levelColors[resale.level]||'#888'}">
-          ${levelLabels[resale.level]||'—'} · ${resale.n > 0 ? resale.n + ' annonces' : 'estimation'}
-        </span>
-        <span class="resale-label-detail">${resale.label}</span>
-        ${resale.isHypothesis ? '<span class="hyp-badge">⚠ Estimation</span>' : ''}
+    <div class="rc-detail">
+      ${landedHTML}
+      ${resaleHTML}
+      ${margeHTML}
+      <div class="rc-actions">
+        <button class="btn-add-pipeline" onclick="event.stopPropagation();window.KARZ.pipeline.addFromListing(event,${JSON.stringify(JSON.stringify(listing)).slice(1,-1)})">
+          + Ajouter au pipeline
+        </button>
       </div>
-      <div class="rc-resale-stats">
-        <div class="rs-stat">
-          <div class="rs-l">P25 <span class="rs-note">(cible)</span></div>
-          <div class="rs-v primary">CHF ${(resale.p25||0).toLocaleString('fr-CH')}</div>
-        </div>
-        ${resale.p50 ? `<div class="rs-stat">
-          <div class="rs-l">Médiane</div>
-          <div class="rs-v">CHF ${resale.p50.toLocaleString('fr-CH')}</div>
-        </div>` : ''}
-        ${resale.mean ? `<div class="rs-stat">
-          <div class="rs-l">Moyenne</div>
-          <div class="rs-v">CHF ${resale.mean.toLocaleString('fr-CH')}</div>
-        </div>` : ''}
-        ${resale.p75 ? `<div class="rs-stat">
-          <div class="rs-l">P75</div>
-          <div class="rs-v">CHF ${resale.p75.toLocaleString('fr-CH')}</div>
-        </div>` : ''}
-      </div>
-      ${resale.comparablesUrl ? `
-      <a class="rc-comparables-link" href="${resale.comparablesUrl}" target="_blank">
-        ↗ Voir les ${resale.n} annonces comparables sur AutoScout24.ch
-      </a>` : ''}
-    </div>` : `
-    <div class="rc-resale-detail missing">
-      ⚠ Prix de revente non disponible — saisir la cote Eurotax après ajout au pipeline
-    </div>`}
-
-    ${calc.landed?.co2?.couldBeExempt ? '<div class="rc-warn">⚠ CO2 calculé en pire cas — vérifier km &gt; 5 000</div>' : ''}
-    <button class="btn-add-pipeline" onclick="window.KARZ.pipeline.addFromListing(event, ${JSON.stringify(JSON.stringify(listing)).slice(1,-1)})">
-      + Ajouter au pipeline
-    </button>
+    </div>
   `;
   return card;
 }
