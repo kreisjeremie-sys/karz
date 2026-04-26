@@ -1,0 +1,12 @@
+{
+  "name": "karz-scraper",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "scrape-eu": "node scrape-eu.js",
+    "scrape-ch": "node scrape-ch.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  }
+}
