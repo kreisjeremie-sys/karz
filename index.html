@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KARZ — Luxury Auto Arbitrage · GVA</title>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#FAFAFA; --bg2:#F2F2F2; --bg3:#E8E8E8;
+  --text:#1A1A1A; --text2:#555; --text3:#888;
+  --border:#DEDEDE; --border2:#C5C5C5;
+  --green:#1D9E75; --green2:#0F6E56; --green-bg:#E1F5EE;
+  --orange:#EF9F27; --orange2:#854F0B; --orange-bg:#FAEEDA;
+  --red:#E24B4A; --red2:#A32D2D; --red-bg:#FCEBEB;
+  --blue:#185FA5; --blue2:#0C447C; --blue-bg:#E6F1FB;
+  --purple:#3C3489; --purple-bg:#EEEDFE;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  font-size:13px;color:var(--text);background:var(--bg);line-height:1.5}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit;font-size:11px}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+b{font-weight:600}
+
+/* TOPBAR */
+.topbar{background:#1A1A1A;color:white;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:1px solid #333}
+.tb-left{display:flex;align-items:center;gap:14px;flex:1}
+.logo{font-size:16px;font-weight:600;letter-spacing:2.5px}
+.logo-sub{font-size:9px;color:#999;letter-spacing:1px;text-transform:uppercase;margin-left:4px}
+.tb-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tbadge{font-size:10px;padding:3px 9px;border-radius:4px;border:0.5px solid #444;color:#aaa}
+.tbadge.ok{background:#143526;border-color:#1D9E75;color:#7AD0AA}
+.tbadge.warn{background:#3F2E0A;border-color:#EF9F27;color:#F2C078}
+.tbadge.no{background:#3A1414;border-color:#E24B4A;color:#F08080}
+.tva-toggle{font-size:10px;padding:4px 10px;border:0.5px solid;border-radius:4px;background:none;cursor:pointer}
+.tva-toggle.A{border-color:#EF9F27;color:#F2C078}
+.tva-toggle.B{border-color:#1D9E75;color:#7AD0AA}
+
+/* NAV */
+.nav{background:white;border-bottom:1px solid var(--border);padding:0 18px;display:flex;gap:0;overflow-x:auto}
+.nav-btn{padding:10px 14px;font-size:11px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text2);font-weight:500;white-space:nowrap;letter-spacing:.5px;text-transform:uppercase}
+.nav-btn:hover{color:var(--text)}
+.nav-btn.active{color:var(--text);border-bottom-color:var(--green)}
+.nav-pill{display:inline-block;background:var(--orange);color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:5px}
+
+/* PAGES */
+.page{display:none;padding:16px 18px 50px;max-width:1400px;margin:0 auto}
+.page.active{display:block}
+
+/* CARDS GENERIC */
+.section-header{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);font-weight:600;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.no-data{color:var(--text3);text-align:center;padding:40px 20px;font-size:12px}
+.loading{color:var(--text3);text-align:center;padding:30px;font-size:12px}
+
+.btn{padding:7px 13px;border:0.5px solid var(--border2);background:white;color:var(--text);font-size:11px;border-radius:5px;font-weight:500}
+.btn:hover{background:var(--bg2)}
+.btn-g{border-color:var(--green);color:var(--green2);font-weight:600}
+.btn-g:hover{background:var(--green-bg)}
+.btn-b{border-color:var(--blue);color:var(--blue)}
+.btn-b:hover{background:var(--blue-bg)}
+.btn-red{border-color:var(--red);color:var(--red2)}
+.btn-red:hover{background:var(--red-bg)}
+
+.badge{display:inline-block;font-size:9px;padding:2px 6px;border-radius:3px;font-weight:600;margin-right:3px}
+.badge.bA{background:var(--orange-bg);color:var(--orange2)}
+.badge.bB{background:var(--green-bg);color:var(--green2)}
+.badge.bpro{background:var(--blue-bg);color:var(--blue2)}
+.badge.bpriv{background:var(--bg2);color:var(--text2)}
+
+.warn-sm{color:var(--orange2);font-size:10px}
+.profit{color:var(--green2)}
+.loss{color:var(--red2)}
+
+.metric{background:white;border:0.5px solid var(--border);border-radius:7px;padding:11px 14px;flex:1;min-width:120px}
+.ml{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.mv{font-size:18px;font-weight:600}
+.mv.g{color:var(--green2)}.mv.r{color:var(--red2)}.mv.b{color:var(--blue)}.mv.a{color:var(--orange2)}
+
+/* SEARCH */
+.search-status-bar{background:white;border:0.5px solid var(--border);border-radius:7px;padding:11px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block}
+.status-dot.warn{background:var(--orange)}.status-dot.ko{background:var(--red)}
+
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:12px}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.fg input,.fg select{padding:6px 9px;border:0.5px solid var(--border);border-radius:4px;background:white;font-size:11px}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--blue)}
+.fg.full{grid-column:1/-1}
+.countries-check{display:flex;flex-wrap:wrap;gap:6px;padding:5px 0}
+.cc-label{font-size:11px;display:flex;align-items:center;gap:3px;cursor:pointer;padding:3px 6px;background:var(--bg2);border-radius:4px}
+.filter-actions{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+
+.result-card{background:white;border:0.5px solid var(--border);border-radius:7px;padding:11px 13px;margin-bottom:7px}
+.result-card:hover{border-color:var(--border2)}
+.rc-header{display:flex;align-items:flex-start;gap:10px}
+.rc-rank{font-size:11px;font-weight:600;color:var(--text3);min-width:25px;padding-top:1px}
+.rc-flag{font-size:18px}
+.rc-info{flex:1;min-width:0}
+.rc-name{font-size:13px;font-weight:600}
+.rc-meta{font-size:11px;color:var(--text2);margin-top:2px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.rc-right{text-align:right;flex-shrink:0}
+.rc-price{font-size:13px;font-weight:600}
+.rc-marge{font-size:13px;font-weight:600;margin-top:2px}
+.rc-link{font-size:14px;color:var(--blue);padding:0 5px;flex-shrink:0}
+.rc-resale{display:flex;gap:8px;align-items:center;margin-top:6px;padding-top:6px;border-top:0.5px solid var(--border);font-size:11px;flex-wrap:wrap}
+.resale-badge{font-size:9px;padding:2px 7px;border-radius:3px;font-weight:600}
+.resale-badge.level1{background:var(--green-bg);color:var(--green2)}
+.resale-badge.level2{background:var(--orange-bg);color:var(--orange2)}
+.resale-badge.level3{background:var(--blue-bg);color:var(--blue2)}
+.resale-price{font-weight:600}
+.hyp-badge{background:var(--orange-bg);color:var(--orange2);font-size:9px;padding:1px 6px;border-radius:3px}
+.rc-warn{margin-top:5px;font-size:10px;padding:5px 8px;background:var(--orange-bg);color:var(--orange2);border-radius:4px}
+.btn-add-pipeline{margin-top:8px;font-size:10px;padding:5px 11px;border:0.5px solid var(--green);color:var(--green2);background:none;border-radius:4px;font-weight:500}
+.btn-add-pipeline:hover{background:var(--green-bg)}
+
+/* PIPELINE */
+.pipeline-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.kanban-board{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:8px;overflow-x:auto;padding-bottom:8px}
+.kanban-col{background:var(--bg2);border-radius:7px;padding:10px;min-width:220px}
+.kanban-col-header{font-size:11px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:0.5px solid var(--border)}
+.kanban-count{background:white;border:0.5px solid var(--border);border-radius:8px;padding:1px 7px;font-size:10px;color:var(--text3)}
+.pipeline-card{background:white;border:0.5px solid var(--border);border-radius:6px;padding:9px 11px;margin-bottom:7px;font-size:11px}
+.pc-header{display:flex;align-items:flex-start;gap:6px;margin-bottom:5px}
+.pc-flag{font-size:14px}
+.pc-info{flex:1;min-width:0}
+.pc-name{font-size:11px;font-weight:600}
+.pc-meta{font-size:10px;color:var(--text2);margin-top:1px}
+.pc-marge{font-size:11px;font-weight:600;flex-shrink:0}
+.pc-link{font-size:10px;display:inline-block;margin:2px 0}
+.pc-price{font-size:11px;font-weight:500;color:var(--text)}
+.last-note{font-size:10px;color:var(--text2);font-style:italic;margin-top:4px;padding:4px 6px;background:var(--bg2);border-radius:3px}
+.pc-actions{margin-top:7px;display:flex;flex-direction:column;gap:5px}
+.status-btns{display:flex;flex-wrap:wrap;gap:3px}
+.status-btn{font-size:9px;padding:2px 6px;border:0.5px solid;border-radius:3px;font-weight:600}
+.pc-final-btns{display:flex;gap:4px;margin-top:3px}
+.btn-mydeals{flex:1;font-size:9px;padding:3px 6px;border:0.5px solid var(--green);background:var(--green-bg);color:var(--green2);border-radius:3px;font-weight:600}
+.btn-lost{flex:1;font-size:9px;padding:3px 6px;border:0.5px solid var(--red);background:var(--red-bg);color:var(--red2);border-radius:3px;font-weight:600}
+.pc-notes{margin-top:7px;padding-top:6px;border-top:0.5px solid var(--border)}
+.notes-list{margin-bottom:5px;max-height:120px;overflow-y:auto}
+.note-item{font-size:10px;padding:3px 0;border-bottom:0.5px dotted var(--border);display:flex;gap:5px}
+.note-author{color:var(--blue);font-weight:600;flex-shrink:0}
+.note-at{color:var(--text3);flex-shrink:0}
+.note-text{color:var(--text);flex:1}
+.note-input-row{display:flex;gap:4px}
+.note-inp{flex:1;font-size:10px;padding:3px 6px;border:0.5px solid var(--border);border-radius:3px}
+.btn-note{font-size:11px;padding:3px 8px;border:0.5px solid var(--border2);background:white;border-radius:3px}
+.btn-delete-deal{margin-top:5px;font-size:9px;color:var(--red2);background:none;border:none;text-decoration:underline;padding:0;cursor:pointer}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:white;border-radius:8px;padding:18px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-wide{max-width:720px}
+.modal-title{font-size:13px;font-weight:600;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.modal-actions{display:flex;gap:8px;align-items:center;margin-top:14px;padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap}
+.lost-reasons{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.lost-reason-opt{font-size:11px;padding:5px 8px;border:0.5px solid var(--border);border-radius:4px;cursor:pointer;display:flex;gap:6px;align-items:center}
+.lost-reason-opt:hover{background:var(--bg2)}
+.modal-note input{width:100%;padding:6px 9px;border:0.5px solid var(--border);border-radius:4px;font-size:11px}
+
+.add-url-section{margin-bottom:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border)}
+.add-url-section label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);font-weight:600;margin-bottom:4px}
+.url-row{display:flex;gap:6px}
+.url-inp{flex:1;padding:7px 11px;border:0.5px solid var(--border);border-radius:4px;font-size:12px}
+.form-grid-modal{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:10px}
+.calc-preview-modal{background:var(--bg2);border-radius:6px;padding:10px 12px;margin-top:10px}
+.calc-rows{display:flex;flex-direction:column;gap:3px;font-size:11px}
+.cr{display:flex;justify-content:space-between;padding:2px 0;border-bottom:0.5px dotted var(--border)}
+.cr.total{border-bottom:1.5px solid var(--text);font-weight:600;padding-top:5px}
+.cr.marge{font-weight:700;font-size:13px;padding-top:5px;border-bottom:none}
+.missing-fields{font-size:10px;padding:5px 8px;background:var(--orange-bg);color:var(--orange2);border-radius:3px}
+
+/* MY DEALS */
+.mydeals-stats{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.mydeal-card{background:white;border:0.5px solid var(--border);border-radius:7px;padding:12px 14px;margin-bottom:8px}
+.md-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:8px;border-bottom:0.5px solid var(--border)}
+.md-flag{font-size:18px}
+.md-info{flex:1}
+.md-name{font-size:13px;font-weight:600}
+.md-meta{font-size:11px;color:var(--text2);margin-top:2px}
+.md-status{font-size:10px;padding:3px 9px;border-radius:4px;font-weight:600}
+.md-status.sold{background:var(--green-bg);color:var(--green2)}
+.md-status.holding{background:var(--orange-bg);color:var(--orange2)}
+.md-section{margin-bottom:10px}
+.md-section.result{background:var(--green-bg);padding:8px 11px;border-radius:5px}
+.md-section-title{font-size:9px;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);font-weight:600;margin-bottom:6px}
+.md-hyp-grid,.md-real-grid,.md-bilan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px}
+.md-hyp-grid > div,.md-bilan-grid > div{display:flex;justify-content:space-between;font-size:11px;padding:3px 6px;background:var(--bg2);border-radius:3px}
+.md-hyp-grid .lbl,.md-bilan-grid .lbl{color:var(--text2)}
+.md-hyp-grid .val,.md-bilan-grid .val{font-weight:600}
+.md-hyp-grid .val.g,.md-bilan-grid .val.g{color:var(--green2)}
+.md-hyp-grid .val.r,.md-bilan-grid .val.r{color:var(--red2)}
+.md-real-grid .fg input{padding:5px 8px;font-size:11px}
+.md-actions{margin-top:10px;display:flex;gap:6px;justify-content:flex-end}
+
+/* LOST */
+.lost-summary{margin-bottom:12px;display:flex;gap:8px}
+.reasons-breakdown{background:white;border:0.5px solid var(--border);border-radius:7px;padding:12px 14px;margin-bottom:12px}
+.rb-title{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--text3);font-weight:600;margin-bottom:8px}
+.rb-list{display:flex;flex-direction:column;gap:4px}
+.reason-row{display:grid;grid-template-columns:200px 1fr 30px;gap:8px;align-items:center;font-size:11px}
+.reason-bar{height:14px;background:var(--blue);border-radius:3px}
+.reason-label{font-size:11px}
+.reason-count{font-weight:600;text-align:right}
+.lost-card{background:white;border:0.5px solid var(--border);border-radius:6px;padding:9px 11px;margin-bottom:6px}
+.lost-header{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.lost-flag{font-size:16px}
+.lost-info{flex:1}
+.lost-name{font-size:12px;font-weight:600}
+.lost-meta{font-size:10px;color:var(--text2);margin-top:1px}
+.lost-marge{font-size:12px;font-weight:600}
+.lost-marge.g{color:var(--green2)}.lost-marge.r{color:var(--red2)}
+.lost-reason{margin:5px 0}
+.reason-tag{font-size:10px;padding:3px 8px;background:var(--orange-bg);color:var(--orange2);border-radius:3px;font-weight:600}
+.lost-note{font-size:10px;color:var(--text2);font-style:italic;margin-top:3px}
+.lost-link{font-size:10px;margin-top:4px;display:inline-block}
+
+/* MARKET CH */
+.market-header{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.market-table{width:100%;border-collapse:collapse;font-size:11px;background:white;border:0.5px solid var(--border);border-radius:6px;overflow:hidden}
+.market-table th{text-align:left;padding:7px 10px;background:var(--bg2);font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border)}
+.market-table td{padding:7px 10px;border-bottom:0.5px solid var(--border)}
+.market-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.market-table tr:hover{background:var(--bg)}
+.market-note{margin-top:10px;font-size:11px;color:var(--text2);padding:8px 11px;background:var(--bg2);border-radius:5px}
+
+/* HEATMAP */
+.heatmap-grid{display:grid;grid-template-columns:160px repeat(5,1fr);gap:3px;margin-bottom:12px;background:white;padding:10px;border-radius:7px}
+.hm-corner,.hm-year{font-size:10px;font-weight:600;color:var(--text3);text-align:center;padding:4px}
+.hm-model{font-size:11px;font-weight:600;display:flex;align-items:center;padding:0 6px}
+.hm-cell{height:42px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
+.hm-cell.low{background:var(--red-bg);color:var(--red2)}
+.hm-cell.mid{background:var(--orange-bg);color:var(--orange2)}
+.hm-cell.high{background:var(--green-bg);color:var(--green2)}
+.hm-legend{display:flex;gap:6px;margin-top:8px;font-size:11px;align-items:center}
+.hm-leg-cell{padding:3px 9px;border-radius:3px;font-weight:600;font-size:10px}
+.hm-leg-cell.low{background:var(--red-bg);color:var(--red2)}
+.hm-leg-cell.mid{background:var(--orange-bg);color:var(--orange2)}
+.hm-leg-cell.high{background:var(--green-bg);color:var(--green2)}
+.hm-note{margin-top:10px;font-size:11px;color:var(--text2);padding:8px 11px;background:var(--bg2);border-radius:5px}
+
+/* ADMIN */
+.admin-section{background:white;border:0.5px solid var(--border);border-radius:7px;padding:14px 16px;margin-bottom:10px}
+.as-title{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);font-weight:600;margin-bottom:10px;padding-bottom:6px;border-bottom:0.5px solid var(--border)}
+.admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.fx-row{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.fx-row input{flex:1;min-width:80px}
+.tva-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.tva-card{padding:14px;border:1px solid var(--border);border-radius:7px;cursor:pointer;transition:all .2s}
+.tva-card:hover{border-color:var(--border2)}
+.tva-card.active{border-color:var(--green);background:var(--green-bg)}
+.tva-card-title{font-size:12px;font-weight:700;margin-bottom:6px}
+.tva-card-desc{font-size:11px;color:var(--text2);line-height:1.7}
+.scrape-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-bottom:10px}
+.scrape-card{padding:14px;border:0.5px solid var(--border);border-radius:7px}
+.sc-title{font-size:12px;font-weight:600;margin-bottom:6px}
+.sc-info{font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:8px}
+.admin-note{font-size:11px;color:var(--text2);padding:8px 11px;background:var(--bg2);border-radius:5px}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-left">
+    <div class="logo">KARZ <span class="logo-sub">Luxury Auto Arbitrage · GVA</span></div>
+  </div>
+  <div class="tb-right">
+    <span class="tbadge no" id="tb-supabase">⟳ Supabase</span>
+    <span class="tbadge no" id="tb-fx">⟳ FX</span>
+    <button class="tva-toggle A" id="tb-tva" onclick="window.KARZ.toggleTvaMode()">Mode A</button>
+    <span class="tbadge" id="tb-user">—</span>
+  </div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <button class="nav-btn active" data-page="search"   onclick="window.KARZ.showPage('search')">RECHERCHE</button>
+  <button class="nav-btn"        data-page="pipeline" onclick="window.KARZ.showPage('pipeline')">PIPELINE <span class="nav-pill" id="pill-pipeline">0</span></button>
+  <button class="nav-btn"        data-page="mydeals"  onclick="window.KARZ.showPage('mydeals')">MY DEALS <span class="nav-pill" id="pill-mydeals">0</span></button>
+  <button class="nav-btn"        data-page="lost"     onclick="window.KARZ.showPage('lost')">DEALS LOST <span class="nav-pill" id="pill-lost">0</span></button>
+  <button class="nav-btn"        data-page="market"   onclick="window.KARZ.showPage('market')">MARCHÉ CH</button>
+  <button class="nav-btn"        data-page="heatmap"  onclick="window.KARZ.showPage('heatmap')">HEATMAP</button>
+  <button class="nav-btn"        data-page="admin"    onclick="window.KARZ.showPage('admin')">ADMIN</button>
+</div>
+
+<!-- PAGES -->
+
+<!-- SEARCH -->
+<div id="page-search" class="page active">
+  <div class="search-status-bar" id="search-status">
+    <span class="status-dot"></span>
+    <span>Chargement…</span>
+  </div>
+  <div class="section-header">Filtres</div>
+  <div id="search-filters"></div>
+  <div class="section-header">Résultats</div>
+  <div id="search-results"></div>
+</div>
+
+<!-- PIPELINE -->
+<div id="page-pipeline" class="page">
+  <div class="pipeline-toolbar">
+    <div class="section-header" style="border:none;margin:0">Pipeline — Shortlist active</div>
+    <button class="btn btn-g" id="pipeline-add-btn" onclick="window.KARZ.pipeline.showAddModal()">+ Ajouter (URL ou manuel)</button>
+  </div>
+  <div id="pipeline-board"></div>
+</div>
+
+<!-- MY DEALS -->
+<div id="page-mydeals" class="page">
+  <div class="section-header">My Deals — Achats confirmés</div>
+  <div id="mydeals-content"></div>
+</div>
+
+<!-- LOST -->
+<div id="page-lost" class="page">
+  <div class="section-header">Deals Lost — Apprentissages</div>
+  <div id="lost-content"></div>
+</div>
+
+<!-- MARKET CH -->
+<div id="page-market" class="page">
+  <div class="section-header">Marché CH — AutoScout24.ch</div>
+  <div id="market-ch-content"></div>
+</div>
+
+<!-- HEATMAP -->
+<div id="page-heatmap" class="page">
+  <div class="section-header">Heatmap arbitrage</div>
+  <div id="heatmap-content"></div>
+</div>
+
+<!-- ADMIN -->
+<div id="page-admin" class="page">
+  <div class="section-header">Admin</div>
+  <div id="admin-content"></div>
+</div>
+
+<!-- MODAL CONTAINER -->
+<div id="modal-container"></div>
+
+<!-- SUPABASE -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- KARZ MODULES -->
+<script type="module">
+import * as config   from './js/config.js';
+import * as state    from './js/state.js';
+import * as calc     from './js/calc.js';
+import * as db       from './js/db.js';
+import * as search   from './js/search.js';
+import * as pipeline from './js/pipeline.js';
+import * as mydeals  from './js/my-deals.js';
+import * as lost     from './js/lost.js';
+import * as marketCH from './js/market-ch.js';
+import * as heatmap  from './js/heatmap.js';
+import * as admin    from './js/admin.js';
+
+// Exposer globalement pour les onclick HTML
+window.KARZ_CONFIG = config;
+window.KARZ = {
+  config, state, calc, db,
+  search, pipeline, mydeals, lost,
+  marketCH, heatmap, admin,
+  showPage, toggleTvaMode,
+};
+
+async function init() {
+  // 1. Vérifier Supabase
+  const sbOk = await db.checkConnection();
+  state.setState({ sbOk });
+  document.getElementById('tb-supabase').className = sbOk ? 'tbadge ok' : 'tbadge no';
+  document.getElementById('tb-supabase').textContent = sbOk ? '● Supabase OK' : '✗ Supabase';
+
+  // 2. Charger la config Supabase
+  const cfg = await db.getConfig();
+  if (cfg.FX)         state.setNestedState('params.FX', cfg.FX);
+  if (cfg.TRANSPORT)  state.setNestedState('params.TRANSPORT', cfg.TRANSPORT);
+  if (typeof cfg.TVA_MODE_B === 'boolean') state.setNestedState('params.TVA_MODE_B', cfg.TVA_MODE_B);
+  if (cfg.USER)       state.setNestedState('params.USER', cfg.USER);
+  document.getElementById('tb-user').textContent = cfg.USER || '—';
+  updateTvaBadge();
+
+  // 3. Fetch FX automatique BCE
+  await admin.fetchFX();
+
+  // 4. Charger les deals (source unique = Supabase)
+  const allDeals = await db.getDeals();
+  state.setState({ deals: allDeals }, true);
+  updatePills();
+
+  // 5. Initialiser la page courante
+  await showPage('search');
+
+  // 6. S'abonner aux changements pour mettre à jour les pills
+  state.subscribe(() => updatePills());
+}
+
+function updatePills() {
+  const s = state.getState();
+  const nP = s.deals.filter(d => d.status === 'pipeline').length;
+  const nM = s.deals.filter(d => d.status === 'mydeals').length;
+  const nL = s.deals.filter(d => d.status === 'lost').length;
+  document.getElementById('pill-pipeline').textContent = nP;
+  document.getElementById('pill-mydeals').textContent  = nM;
+  document.getElementById('pill-lost').textContent     = nL;
+}
+
+function updateTvaBadge() {
+  const tvaB = state.getState().params.TVA_MODE_B;
+  const btn = document.getElementById('tb-tva');
+  btn.textContent = tvaB ? 'Mode B' : 'Mode A';
+  btn.className = 'tva-toggle ' + (tvaB ? 'B' : 'A');
+}
+
+async function toggleTvaMode() {
+  const s = state.getState();
+  const newMode = !s.params.TVA_MODE_B;
+  await admin.saveParam('TVA_MODE_B', newMode);
+  updateTvaBadge();
+  await showPage(s.currentPage);
+}
+
+async function showPage(name) {
+  state.setState({ currentPage: name }, true);
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name)?.classList.add('active');
+  document.querySelector(`.nav-btn[data-page="${name}"]`)?.classList.add('active');
+
+  if (name === 'search')   await search.initSearch();
+  if (name === 'pipeline') await pipeline.initPipeline();
+  if (name === 'mydeals')  await mydeals.initMyDeals();
+  if (name === 'lost')     await lost.initLost();
+  if (name === 'market')   await marketCH.initMarketCH();
+  if (name === 'heatmap')  await heatmap.initHeatmap();
+  if (name === 'admin')    await admin.initAdmin();
+}
+
+init();
+</script>
+</body>
+</html>
