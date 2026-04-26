@@ -132,6 +132,54 @@ b{font-weight:600}
 .rc-comparables-link{font-size:10px;color:var(--blue);display:inline-block;margin-top:2px}
 .rc-comparables-link:hover{text-decoration:underline}
 
+/* RESULT CARD EXPANDABLE */
+.result-card .rc-detail{display:none;border-top:0.5px solid var(--border);margin-top:8px;padding-top:8px}
+.result-card.expanded .rc-detail{display:block}
+.result-card.expanded .rc-chevron{transform:rotate(180deg)}
+.rc-chevron{font-size:10px;color:var(--text3);transition:transform .2s;margin-left:4px;flex-shrink:0}
+.rc-ttc{font-size:9px;color:var(--text3);font-weight:400}
+.rc-marge-preview{font-size:12px;font-weight:600;margin-top:2px}
+
+/* DETAIL SECTIONS */
+.detail-section{background:var(--bg2);border-radius:6px;padding:10px 12px;margin-bottom:8px}
+.ds-title{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.ds-level{font-size:9px;font-weight:600;text-transform:none;letter-spacing:0}
+.ds-row{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;padding:3px 0;border-bottom:0.5px dotted var(--border)}
+.ds-row:last-child{border:none}
+.ds-row.bold{font-weight:600}
+.ds-row.cost span:last-child{color:var(--red2)}
+.ds-row.zero span:last-child{color:var(--green2)}
+.ds-row.total{font-weight:700;border-top:1px solid var(--border2);padding-top:6px;margin-top:3px;font-size:12px}
+.ds-row.deduct span:first-child{color:var(--text2)}
+.ds-row.note{color:var(--text3);font-size:10px;font-style:italic}
+.ds-sep{height:4px}
+.ds-src{font-size:9px;color:var(--text3);margin-left:5px;font-weight:400}
+.ds-src.ok{color:var(--green2)}
+.ds-src.warn{color:var(--orange2)}
+.ds-note{font-size:10px;color:var(--text2);margin-bottom:6px;line-height:1.5}
+.ds-note.warn{color:var(--orange2)}
+
+/* RESALE STATS GRID */
+.rs-stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin:8px 0}
+.rs-stat-item{background:white;border:0.5px solid var(--border);border-radius:4px;padding:6px 9px}
+.rs-stat-item.primary{border-color:var(--green);background:var(--green-bg)}
+.rs-stat-l{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;display:flex;gap:4px;align-items:center}
+.rs-cible{background:var(--green2);color:white;font-size:8px;padding:1px 4px;border-radius:2px;text-transform:none;letter-spacing:0;font-weight:600}
+.rs-stat-v{font-size:13px;font-weight:600}
+.rs-stat-item.primary .rs-stat-v{color:var(--green2)}
+
+/* MARGE FINALE */
+.detail-marge{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:8px}
+.detail-marge.profit{background:var(--green-bg);color:var(--green2);border:1px solid var(--green)}
+.detail-marge.loss{background:var(--red-bg);color:var(--red2);border:1px solid var(--red)}
+.detail-marge:not(.profit):not(.loss){background:var(--bg2);color:var(--text2);border:0.5px solid var(--border)}
+.marge-val{font-size:16px;font-weight:700}
+
+/* ACTIONS */
+.rc-actions{display:flex;gap:8px;padding-top:6px}
+.btn-add-pipeline{font-size:10px;padding:6px 13px;border:0.5px solid var(--green);color:var(--green2);background:none;border-radius:4px;font-weight:500;cursor:pointer}
+.btn-add-pipeline:hover{background:var(--green-bg)}
+
 /* PIPELINE */
 .pipeline-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
 .kanban-board{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:8px;overflow-x:auto;padding-bottom:8px}
