@@ -10,16 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Trigger Vercel API
-        run: |
-          response=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://karz-rho.vercel.app/api/scrape-eu" \
-            -H "Content-Type: application/json")
-          http_code=$(echo "$response" | tail -n 1)
-          body=$(echo "$response" | sed '$d')
-          echo "Status: $http_code"
-          echo "Response: $body"
-          if [ "$http_code" != "200" ]; then
-            echo "::error::Scrape EU failed with status $http_code"
-            exit 1
-          fi
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run EU scraper
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node scrape-eu.js
