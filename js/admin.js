@@ -113,10 +113,12 @@ export async function setTvaMode(modeB) {
 
 export async function fetchFX() {
   try {
-    const r = await fetch('https://api.frankfurter.app/latest?from=EUR&to=CHF');
+    // Via proxy Vercel pour éviter le blocage CORS du navigateur
+    const r = await fetch('/api/fx');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
-    const rate = data?.rates?.CHF;
+    if (!data.success) throw new Error(data.error || 'Erreur API');
+    const rate = data.rate;
     if (!rate || rate < 0.8 || rate > 1.5) throw new Error('Taux hors plage');
     const rounded = Math.round(rate * 10000) / 10000;
     await saveParam('FX', rounded);
@@ -129,35 +131,30 @@ export async function fetchFX() {
   }
 }
 
-export async function runScrapeEU() {
-  const status = document.getElementById('scrape-eu-status');
-  if (status) status.textContent = '⟳ Scrape EU en cours…';
+// Déclenche GitHub Actions via l'API GitHub (pas de timeout navigateur)
+async function triggerGHAction(workflow, statusEl) {
+  if (statusEl) statusEl.textContent = '⟳ Déclenchement GitHub Actions…';
   try {
-    const r = await fetch('/api/scrape-eu', { method: 'POST' });
+    const r = await fetch('/api/trigger-workflow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow }),
+    });
     const data = await r.json();
     if (data.success) {
-      if (status) status.textContent = `✓ ${data.totalSaved} annonces sauvegardées · ${new Date().toLocaleTimeString('fr-CH')}`;
+      if (statusEl) statusEl.textContent = `✓ Workflow déclenché — résultats dans Supabase dans ~30 min · ${new Date().toLocaleTimeString('fr-CH')}`;
     } else {
-      throw new Error(data.error || 'Erreur scrape');
+      throw new Error(data.error || 'Erreur');
     }
   } catch(e) {
-    if (status) status.textContent = `✗ ${e.message}`;
+    if (statusEl) statusEl.textContent = `✗ ${e.message}`;
   }
 }
 
+export async function runScrapeEU() {
+  await triggerGHAction('scrape-eu.yml', document.getElementById('scrape-eu-status'));
+}
+
 export async function runScrapeCH() {
-  const status = document.getElementById('scrape-ch-status');
-  if (status) status.textContent = '⟳ Scrape CH en cours…';
-  try {
-    const r = await fetch('/api/scrape-ch', { method: 'POST' });
-    const data = await r.json();
-    if (data.success) {
-      if (status) status.textContent = `✓ ${data.totalSaved} annonces sauvegardées · ${new Date().toLocaleTimeString('fr-CH')}`;
-      window.KARZ.marketCH?.render();
-    } else {
-      throw new Error(data.error || 'Erreur scrape');
-    }
-  } catch(e) {
-    if (status) status.textContent = `✗ ${e.message}`;
-  }
+  await triggerGHAction('scrape-ch.yml', document.getElementById('scrape-ch-status'));
 }
