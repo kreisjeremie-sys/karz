@@ -208,6 +208,146 @@ export async function setConfig(key, value) {
   } catch(e) { return handleError('setConfig', e) ?? false; }
 }
 
+
+// ── COMPARABLES CH — filtrage intelligent par véhicule ───────
+// Retourne les annonces CH comparables avec dégradation progressive
+export async function getComparablesCH({ model_slug, fuel_type, version, year, km }) {
+  if (!model_slug || !year || !km) return { rows: [], level: 0, label: 'Données insuffisantes' };
+
+  // Extraire la finition principale du champ version
+  // Ex: "D300 SE" → "SE" | "P400e HSE" → "HSE" | "Turbo GT" → "Turbo"
+  const FINITIONS = ['X-Dynamic HSE','X-Dynamic SE','X-Dynamic','Autobiography','SVR','SV','HSE','SE','GTS','Turbo S E-Hybrid','Turbo E-Hybrid','Turbo','GTS','S E-Hybrid','E-Hybrid','S','X'];
+  let finition = null;
+  if (version) {
+    const vUp = version.toUpperCase();
+    for (const f of FINITIONS) {
+      if (vUp.includes(f.toUpperCase())) { finition = f; break; }
+    }
+  }
+
+  // Normaliser le carburant pour le matching
+  const fuelNorm = normalizeFuel(fuel_type);
+
+  const levels = [
+    // Niveau 1 : finition + fuel + ±1 an + ±30% km (N≥3)
+    finition ? {
+      label: `${finition} · ${fuelNorm || 'Tous carburants'} · ${year-1}–${year+1} · ${Math.round(km*0.7/1000)}k–${Math.round(km*1.3/1000)}k km`,
+      levelN: 1,
+      minN: 3,
+      filters: { finition, fuel: fuelNorm, yearMin: year-1, yearMax: year+1, kmMin: Math.round(km*0.7), kmMax: Math.round(km*1.3) }
+    } : null,
+    // Niveau 2 : fuel + ±1 an + ±30% km (N≥5)
+    {
+      label: `${fuelNorm || 'Tous carburants'} · ${year-1}–${year+1} · ${Math.round(km*0.7/1000)}k–${Math.round(km*1.3/1000)}k km · Finition non filtrée`,
+      levelN: 2,
+      minN: 5,
+      filters: { fuel: fuelNorm, yearMin: year-1, yearMax: year+1, kmMin: Math.round(km*0.7), kmMax: Math.round(km*1.3) }
+    },
+    // Niveau 3 : fuel + ±2 ans + ±50% km (N≥5)
+    {
+      label: `${fuelNorm || 'Tous carburants'} · ${year-2}–${year+2} · ${Math.round(km*0.5/1000)}k–${Math.round(km*1.5/1000)}k km · Comparables élargis`,
+      levelN: 3,
+      minN: 5,
+      filters: { fuel: fuelNorm, yearMin: year-2, yearMax: year+2, kmMin: Math.round(km*0.5), kmMax: Math.round(km*1.5) }
+    },
+    // Niveau 4 : ±2 ans + ±50% km sans filtre fuel (N≥5)
+    {
+      label: `${year-2}–${year+2} · ${Math.round(km*0.5/1000)}k–${Math.round(km*1.5/1000)}k km · Tous carburants`,
+      levelN: 4,
+      minN: 5,
+      filters: { yearMin: year-2, yearMax: year+2, kmMin: Math.round(km*0.5), kmMax: Math.round(km*1.5) }
+    },
+  ].filter(Boolean);
+
+  for (const lvl of levels) {
+    const rows = await _queryCH(model_slug, lvl.filters);
+    if (rows.length >= lvl.minN) {
+      return { rows, level: lvl.levelN, label: lvl.label, finition, fuelNorm };
+    }
+  }
+  return { rows: [], level: 5, label: 'Trop peu d'annonces — dépréciation utilisée', finition, fuelNorm };
+}
+
+function normalizeFuel(fuel) {
+  if (!fuel) return null;
+  const f = fuel.toLowerCase();
+  if (f.includes('diesel') || f === 'd') return 'diesel';
+  if (f.includes('electric') || f.includes('électr') || f === 'e') return 'electrique';
+  if (f.includes('hybrid') || f.includes('hybride') || f === 'h') return 'hybride';
+  if (f.includes('essence') || f.includes('petrol') || f.includes('gasoline') || f === 'b') return 'essence';
+  return null;
+}
+
+async function _queryCH(model_slug, { finition, fuel, yearMin, yearMax, kmMin, kmMax }) {
+  try {
+    let q = sb()
+      .from('listings_ch')
+      .select('price_chf_ttc, year, km, version, fuel_type, listing_url')
+      .is('sold_at', null)
+      .eq('model_slug', model_slug)
+      .gte('year', yearMin).lte('year', yearMax)
+      .gte('km', kmMin).lte('km', kmMax)
+      .gt('price_chf_ttc', 0);
+
+    const { data, error } = await q.limit(100);
+    if (error || !data) return [];
+
+    let rows = data;
+
+    // Filtre finition côté client (matching flexible)
+    if (finition) {
+      const finUp = finition.toUpperCase();
+      const withFin = rows.filter(r => r.version?.toUpperCase().includes(finUp));
+      if (withFin.length > 0) rows = withFin;
+    }
+
+    // Filtre carburant côté client
+    if (fuel) {
+      const withFuel = rows.filter(r => normalizeFuel(r.fuel_type) === fuel);
+      if (withFuel.length > 0) rows = withFuel;
+    }
+
+    return rows.map(r => r.price_chf_ttc).filter(p => p > 0);
+  } catch(e) { return []; }
+}
+
+// ── STATS depuis un tableau de prix ─────────────────────────
+export function computePriceStats(prices) {
+  if (!prices.length) return null;
+  const sorted = [...prices].sort((a,b)=>a-b);
+  const p = (pct) => {
+    const k = (pct/100)*(sorted.length-1);
+    const f = Math.floor(k); const c = Math.ceil(k);
+    return Math.round(f===c ? sorted[f] : sorted[f]+(k-f)*(sorted[c]-sorted[f]));
+  };
+  return {
+    n:    sorted.length,
+    p25:  p(25),
+    p50:  p(50),
+    p75:  p(75),
+    mean: Math.round(sorted.reduce((a,b)=>a+b,0)/sorted.length),
+    min:  sorted[0],
+    max:  sorted[sorted.length-1],
+  };
+}
+
+// ── URL AutoScout24.ch pour les comparables ──────────────────
+export function buildAS24chUrl(model_slug, { yearMin, yearMax, kmMin, kmMax, fuel }) {
+  // Mapping slug → paramètres AS24.ch
+  const makeMap = {
+    'macan':'porsche','cayenne':'porsche',
+    'defender':'land-rover','defender-90':'land-rover','defender-110':'land-rover','defender-130':'land-rover',
+    'range-rover':'land-rover','range-rover-sport':'land-rover','range-rover-evoque':'land-rover',
+  };
+  const make  = makeMap[model_slug] || 'land-rover';
+  const model = model_slug;
+
+  const fuelMap = { diesel:'D', essence:'B', electrique:'E', hybride:'M' };
+  const fuelParam = fuel && fuelMap[fuel] ? `&fuel=${fuelMap[fuel]}` : '';
+
+  return `https://www.autoscout24.ch/lst/${make}/${model}?atype=C&cy=CH&ustate=U,N&fregfrom=${yearMin}&fregto=${yearMax}&kmfrom=${kmMin}&kmto=${kmMax}${fuelParam}&sort=price&desc=0`;
+}
+
 // ── STATUT CONNEXION ─────────────────────────────────────────
 
 export async function checkConnection() {
