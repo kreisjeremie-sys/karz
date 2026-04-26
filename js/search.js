@@ -11,7 +11,8 @@ import { FLAGS, COUNTRY_NAMES, MODELS } from './config.js';
 let _rendered = false;
 
 export async function initSearch() {
-  if (_rendered) return;
+  const filtersEl = document.getElementById('search-filters');
+  if (_rendered && filtersEl && filtersEl.children.length > 0) return;
   _rendered = true;
   _buildFilters();
   await _loadMeta();
