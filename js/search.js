@@ -249,7 +249,7 @@ function _renderResultCard(r, idx) {
   const { listing, calc } = r;
   const flag     = FLAGS[listing.country] || '🌍';
   const marge    = calc.marge;
-  const margeCls = marge > 0 ? 'profit' : marge < 0 ? 'loss' : '';
+  const margeCls = (marge && marge > 0) ? 'profit' : (marge && marge < 0) ? 'loss' : '';
   const resale   = calc.resale;
 
   // Badges niveau de fiabilité du prix de revente
@@ -277,8 +277,8 @@ function _renderResultCard(r, idx) {
         <div class="rc-marge ${margeCls}">
           ${calc.margeBlocked
             ? '<span class="warn-sm">⚠ Données insuffisantes</span>'
-            : marge !== null
-              ? `CHF ${marge.toLocaleString('fr-CH')}`
+            : (marge !== null && marge !== undefined)
+              ? `CHF ${Math.round(marge).toLocaleString('fr-CH')}`
               : '—'}
         </div>
       </div>
