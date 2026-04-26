@@ -5,7 +5,7 @@
 
 import { getState, setState, setNestedState } from './state.js';
 import { getListingsEU, getListingsEUMeta } from './db.js';
-import { computeDeal } from './calc.js';
+import { computeDeal, computeDealAsync } from './calc.js';
 import { FLAGS, COUNTRY_NAMES, MODELS } from './config.js';
 
 let _rendered = false;
@@ -169,12 +169,15 @@ export async function runSearch() {
     return;
   }
 
-  // Calcul et filtrage côté client
-  let results = raw.map(listing => {
+  // Calcul avec comparables CH async
+  const stateRef = state;
+  const dbMod = window.KARZ.db;
+  let results = await Promise.all(raw.map(async listing => {
     const deal = _listingToDeal(listing);
-    const calc  = computeDeal(deal, state);
+    // computeDealAsync charge les comparables CH depuis Supabase
+    const calc = await window.KARZ.calc.computeDealAsync(deal, stateRef, dbMod);
     return { listing, deal, calc };
-  });
+  }));
 
   // Filtre carburant côté client
   if (fuelType) {
@@ -244,11 +247,13 @@ function _normalizeBrand(b) {
 function _renderResultCard(r, idx) {
   const { listing, calc } = r;
   const flag     = FLAGS[listing.country] || '🌍';
-  const hasCalc  = !calc.error && !calc.margeBlocked;
-  const marge    = hasCalc ? calc.marge : null;
-  const margeStr = marge !== null ? `CHF ${marge.toLocaleString('fr-CH')}` : '—';
+  const marge    = calc.marge;
   const margeCls = marge > 0 ? 'profit' : marge < 0 ? 'loss' : '';
   const resale   = calc.resale;
+
+  // Badges niveau de fiabilité du prix de revente
+  const levelColors = { 0:'#185FA5',1:'#0F6E56',2:'#0F6E56',3:'#854F0B',4:'#854F0B',5:'#888',99:'#cc0000' };
+  const levelLabels = { 0:'Eurotax',1:'Comparables',2:'Comparables',3:'Comparables élargis',4:'Comparables élargis',5:'Dépréciation',99:'—' };
 
   const card = document.createElement('div');
   card.className = 'result-card';
@@ -260,24 +265,62 @@ function _renderResultCard(r, idx) {
         <div class="rc-name">${listing.model_full || listing.brand + ' ' + listing.model_slug} ${listing.year || '—'}</div>
         <div class="rc-meta">
           ${listing.km ? listing.km.toLocaleString('fr-CH') + ' km' : '—'} ·
-          ${listing.days_online ? listing.days_online + 'j en ligne' : ''} ·
-          ${listing.seller_type === 'pro' || listing.seller_type === 'dealer' ? '<span class="badge bpro">Pro</span>' : '<span class="badge bpriv">Particulier</span>'}
-          ${listing.seller_name ? '· ' + listing.seller_name : ''}
+          ${listing.fuel_type ? listing.fuel_type : ''} ·
+          ${listing.days_online ? listing.days_online + 'j' : ''} ·
+          ${listing.seller_type === 'pro' ? '<span class="badge bpro">Pro</span>' : '<span class="badge bpriv">Particulier</span>'}
+          ${listing.seller_name && listing.seller_name !== '—' ? '· ' + listing.seller_name : ''}
         </div>
       </div>
       <div class="rc-right">
         <div class="rc-price">€${(listing.price_eur_ttc || 0).toLocaleString('fr-CH')}</div>
-        <div class="rc-marge ${margeCls}">${calc.margeBlocked ? '<span class="warn-sm">⚠ Benchmark CH requis</span>' : margeStr}</div>
+        <div class="rc-marge ${margeCls}">
+          ${calc.margeBlocked
+            ? '<span class="warn-sm">⚠ Données insuffisantes</span>'
+            : marge !== null
+              ? `CHF ${marge.toLocaleString('fr-CH')}`
+              : '—'}
+        </div>
       </div>
       ${listing.listing_url ? `<a class="rc-link" href="${listing.listing_url}" target="_blank" onclick="event.stopPropagation()">↗</a>` : ''}
     </div>
-    ${resale && !calc.margeBlocked ? `
-    <div class="rc-resale">
-      <span class="resale-badge level${resale.level}">${resale.label}</span>
-      <span class="resale-price">CHF ${(resale.price || 0).toLocaleString('fr-CH')}</span>
-      ${resale.isHypothesis ? '<span class="hyp-badge">⚠ Hypothèse</span>' : ''}
-    </div>` : ''}
-    ${calc.landed?.co2?.couldBeExempt ? '<div class="rc-warn">⚠ CO2 en pire cas — vérifier km &gt; 5 000</div>' : ''}
+
+    ${resale && resale.price ? `
+    <div class="rc-resale-detail">
+      <div class="rc-resale-header">
+        <span class="resale-level-badge" style="color:${levelColors[resale.level]||'#888'}">
+          ${levelLabels[resale.level]||'—'} · ${resale.n > 0 ? resale.n + ' annonces' : 'estimation'}
+        </span>
+        <span class="resale-label-detail">${resale.label}</span>
+        ${resale.isHypothesis ? '<span class="hyp-badge">⚠ Estimation</span>' : ''}
+      </div>
+      <div class="rc-resale-stats">
+        <div class="rs-stat">
+          <div class="rs-l">P25 <span class="rs-note">(cible)</span></div>
+          <div class="rs-v primary">CHF ${(resale.p25||0).toLocaleString('fr-CH')}</div>
+        </div>
+        ${resale.p50 ? `<div class="rs-stat">
+          <div class="rs-l">Médiane</div>
+          <div class="rs-v">CHF ${resale.p50.toLocaleString('fr-CH')}</div>
+        </div>` : ''}
+        ${resale.mean ? `<div class="rs-stat">
+          <div class="rs-l">Moyenne</div>
+          <div class="rs-v">CHF ${resale.mean.toLocaleString('fr-CH')}</div>
+        </div>` : ''}
+        ${resale.p75 ? `<div class="rs-stat">
+          <div class="rs-l">P75</div>
+          <div class="rs-v">CHF ${resale.p75.toLocaleString('fr-CH')}</div>
+        </div>` : ''}
+      </div>
+      ${resale.comparablesUrl ? `
+      <a class="rc-comparables-link" href="${resale.comparablesUrl}" target="_blank">
+        ↗ Voir les ${resale.n} annonces comparables sur AutoScout24.ch
+      </a>` : ''}
+    </div>` : `
+    <div class="rc-resale-detail missing">
+      ⚠ Prix de revente non disponible — saisir la cote Eurotax après ajout au pipeline
+    </div>`}
+
+    ${calc.landed?.co2?.couldBeExempt ? '<div class="rc-warn">⚠ CO2 calculé en pire cas — vérifier km &gt; 5 000</div>' : ''}
     <button class="btn-add-pipeline" onclick="window.KARZ.pipeline.addFromListing(event, ${JSON.stringify(JSON.stringify(listing)).slice(1,-1)})">
       + Ajouter au pipeline
     </button>
