@@ -123,11 +123,14 @@ export async function fetchFX() {
     const rounded = Math.round(rate * 10000) / 10000;
     await saveParam('FX', rounded);
     setState({ fxOk: true });
-    document.getElementById('adm-fx').value = rounded;
-    document.getElementById('fx-source').textContent = '● BCE auto · ' + new Date().toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' });
+    const adFx = document.getElementById('adm-fx');
+    if (adFx) adFx.value = rounded;
+    const fxSrc2 = document.getElementById('fx-source');
+    if (fxSrc2) fxSrc2.textContent = '● BCE auto · ' + new Date().toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' });
   } catch(e) {
     setState({ fxOk: false });
-    document.getElementById('fx-source').textContent = '⚠ Erreur fetch — saisie manuelle';
+    const fxSrc = document.getElementById('fx-source');
+    if (fxSrc) fxSrc.textContent = '⚠ Erreur fetch — saisie manuelle';
   }
 }
 
