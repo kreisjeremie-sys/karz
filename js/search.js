@@ -327,7 +327,7 @@ function _renderResultCard(r, idx) {
   card.style.cursor = 'pointer';
 
   card.innerHTML = `
-    <div class="rc-header" onclick="this.parentElement.classList.toggle('expanded')">
+    <div class="rc-header">
       <div class="rc-rank">#${idx+1}</div>
       <span class="rc-flag">${flag}</span>
       <div class="rc-info">
@@ -361,6 +361,11 @@ function _renderResultCard(r, idx) {
       </div>
     </div>
   `;
+  // Event listener pour le toggle — plus fiable que onclick inline
+  card.querySelector('.rc-header').addEventListener('click', function(e) {
+    if (e.target.closest('a') || e.target.closest('button')) return;
+    card.classList.toggle('expanded');
+  });
   return card;
 }
 
