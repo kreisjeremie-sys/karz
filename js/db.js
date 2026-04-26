@@ -265,7 +265,7 @@ export async function getComparablesCH({ model_slug, fuel_type, version, year, k
       return { rows, level: lvl.levelN, label: lvl.label, finition, fuelNorm };
     }
   }
-  return { rows: [], level: 5, label: 'Trop peu d'annonces — dépréciation utilisée', finition, fuelNorm };
+  return { rows: [], level: 5, label: 'Trop peu d\'annonces — depreciation utilisee', finition, fuelNorm };
 }
 
 function normalizeFuel(fuel) {
