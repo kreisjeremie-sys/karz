@@ -327,7 +327,7 @@ function _renderResultCard(r, idx) {
   card.style.cursor = 'pointer';
 
   card.innerHTML = `
-    <div class="rc-header" onclick="this.closest('.result-card').classList.toggle('expanded')">
+    <div class="rc-header" onclick="this.parentElement.classList.toggle('expanded')">
       <div class="rc-rank">#${idx+1}</div>
       <span class="rc-flag">${flag}</span>
       <div class="rc-info">
