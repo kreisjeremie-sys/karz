@@ -108,7 +108,6 @@ function _buildFilters() {
 }
 
 export function onBrandChange() {
-  const brand = document.getElementById('f-brand')?.value;
   const modelSel = document.getElementById('f-model');
   if (!modelSel) return;
 
