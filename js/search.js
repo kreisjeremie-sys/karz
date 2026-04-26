@@ -139,7 +139,11 @@ export async function runSearch() {
   if (!listEl) return;
 
   // Lire les filtres
-  const brand    = document.getElementById('f-brand')?.value  || '';
+  const brandRaw = document.getElementById('f-brand')?.value  || '';
+  // Normaliser slug → nom exact Supabase
+  const brand = brandRaw === 'porsche' ? 'Porsche'
+              : brandRaw === 'land-rover' ? 'Land Rover'
+              : brandRaw;
   const modelSlug= document.getElementById('f-model')?.value  || '';
   const yearMin  = parseInt(document.getElementById('f-ymin')?.value)  || null;
   const yearMax  = parseInt(document.getElementById('f-ymax')?.value)  || null;
