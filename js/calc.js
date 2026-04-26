@@ -123,71 +123,82 @@ export function computeRevenue(reventeTTC, tvaMode) {
   return reventeTTC;
 }
 
-// ── PRIX DE REVENTE — TRIANGULATION 3 NIVEAUX ─────────────────
-// Niveau 1 : P25 scrape AS24.ch (N≥5) — données réelles
-// Niveau 2 : Dépréciation depuis MSRP (si N<5)
-// Niveau 3 : Cote Eurotax saisie manuellement (prime sur tout)
-export function computeResalePrice(spec, year, km, eurotaxOverride) {
-  // Niveau 3 — Eurotax prime toujours
+// ── PRIX DE REVENTE — 5 NIVEAUX DE TRIANGULATION ─────────────
+// Niveau 1 : Comparables CH filtrés (finition+fuel+année+km) N≥3
+// Niveau 2 : Comparables CH fuel+année+km N≥5
+// Niveau 3 : Comparables CH élargis N≥5
+// Niveau 4 : Comparables CH sans fuel N≥5
+// Niveau 5 : Dépréciation depuis MSRP par finition
+// Niveau 0 : Eurotax saisi manuellement (prime sur tout)
+
+export function computeResalePrice(spec, year, km, eurotaxOverride, comparablesResult) {
+  // Niveau 0 — Eurotax prime toujours
   if (eurotaxOverride && eurotaxOverride > 0) {
     return {
-      level: 3,
-      price: eurotaxOverride,
-      label: 'Eurotax (saisi manuellement)',
-      isHypothesis: false,
-      details: null,
-    };
-  }
-
-  // Niveau 1 — benchmark AS24.ch
-  if (spec.resale_p25 && spec.resale_p25 > 0) {
-    return {
-      level: 1,
-      price: spec.resale_p25,
-      label: `P25 AS24.ch — ${spec.resale_src || 'scrape CH'}`,
-      isHypothesis: false,
-      details: null,
-    };
-  }
-
-  // Niveau 2 — dépréciation depuis MSRP
-  if (!spec.msrp || spec.msrp <= 0) {
-    return {
       level: 0,
-      price: null,
-      label: 'Prix de revente inconnu — MSRP manquant',
-      isHypothesis: true,
-      details: null,
+      price: eurotaxOverride,
+      p25: eurotaxOverride, p50: null, p75: null, mean: null,
+      n: 1,
+      label: 'Cote Eurotax (saisie manuellement)',
+      isHypothesis: false,
+      comparablesUrl: null,
     };
+  }
+
+  // Niveaux 1-4 — Comparables CH depuis Supabase
+  if (comparablesResult && comparablesResult.rows?.length >= 1) {
+    const { rows, level, label, comparablesUrl } = comparablesResult;
+    const sorted = [...rows].sort((a,b)=>a-b);
+    const p = (pct) => {
+      const k = (pct/100)*(sorted.length-1);
+      const f = Math.floor(k); const c = Math.ceil(k);
+      return Math.round(f===c ? sorted[f] : sorted[f]+(k-f)*(sorted[c]-sorted[f]));
+    };
+    const stats = {
+      n:    sorted.length,
+      p25:  p(25),
+      p50:  p(50),
+      p75:  p(75),
+      mean: Math.round(sorted.reduce((a,b)=>a+b,0)/sorted.length),
+    };
+    return {
+      level,
+      price: stats.p25,  // P25 = prix de revente retenu
+      ...stats,
+      label,
+      isHypothesis: false,
+      comparablesUrl,
+    };
+  }
+
+  // Niveau 5 — dépréciation depuis MSRP
+  if (!spec?.msrp || spec.msrp <= 0) {
+    return { level: 99, price: null, n: 0, label: 'MSRP manquant — saisir Eurotax', isHypothesis: true };
   }
 
   const currentYear = new Date().getFullYear();
   const ageYears    = Math.max(0, currentYear - (year || currentYear));
-
-  // Dépréciation cumulée
   let depreciatedValue = spec.msrp;
   for (let y = 1; y <= ageYears; y++) {
     const rate = DEPRECIATION.rates[y] ?? DEPRECIATION.rateDefault;
     depreciatedValue *= (1 - rate);
   }
-
-  // Facteur km
-  const normKm      = (DEPRECIATION.kmNormPerYear * ageYears) || 1;
-  const excessKm    = Math.max(0, (km || 0) - normKm);
-  const kmPenalty   = (excessKm / 10000) * DEPRECIATION.kmExcessFactor;
+  const normKm     = (DEPRECIATION.kmNormPerYear * Math.max(ageYears, 1));
+  const excessKm   = Math.max(0, (km || 0) - normKm);
+  const kmPenalty  = (excessKm / 10000) * DEPRECIATION.kmExcessFactor;
   depreciatedValue *= (1 - kmPenalty);
-  depreciatedValue  = Math.round(depreciatedValue / 500) * 500; // arrondi au 500 CHF
+  depreciatedValue  = Math.round(depreciatedValue / 500) * 500;
 
   return {
-    level: 2,
+    level: 5,
     price: depreciatedValue,
-    label: `Estimation dépréciation (${ageYears} ans, MSRP CHF ${spec.msrp.toLocaleString('fr-CH')})`,
+    p25: depreciatedValue, p50: null, p75: null, mean: null,
+    n: 0,
+    label: `Estimation dépréciation — ${ageYears} an${ageYears>1?'s':''} · MSRP CHF ${spec.msrp.toLocaleString('fr-CH')} (${spec.msrpSrc})`,
     isHypothesis: true,
     msrp: spec.msrp,
-    msrpSrc: spec.msrpSrc,
     ageYears,
-    excessKm: Math.round(excessKm),
-    details: { msrp:spec.msrp, ageYears, excessKm:Math.round(excessKm), depreciatedValue },
+    comparablesUrl: null,
   };
 }
 
@@ -198,9 +209,8 @@ export function computeMarge(reventeTTC, landed_total, tvaMode) {
 }
 
 // ── FONCTION PRINCIPALE — appelée PARTOUT dans l'app ──────────
-// Input : deal object (voir db.js pour le schéma)
-// Output : objet complet avec tous les calculs
-export function computeDeal(deal, globalState) {
+// Version synchrone (sans comparables CH) — pour la heatmap et listes rapides
+export function computeDeal(deal, globalState, comparablesResult = null) {
   const { SPECS } = globalState.config;
   const { FX, TRANSPORT, TVA_MODE_B } = globalState.params;
   const tvaMode = TVA_MODE_B ? 'B' : 'A';
@@ -208,17 +218,13 @@ export function computeDeal(deal, globalState) {
   const spec = SPECS[`${deal.brand} ${deal.model}`];
   if (!spec) return { error: `Modèle inconnu: ${deal.brand} ${deal.model}` };
 
-  // Prix base CHF selon type vendeur et mode TVA
   const priceTTC_EUR = deal.price_eur_ttc || 0;
   const vatOrigin    = LEGAL.VAT_BY_COUNTRY[deal.country] || 0.20;
   const isPro        = deal.seller_type === 'pro' || deal.seller_type === 'dealer';
-
-  // Si vendeur pro → déduction TVA pays d'origine (export B2B UE→CH)
   const priceHT_EUR  = isPro ? Math.round(priceTTC_EUR / (1 + vatOrigin)) : priceTTC_EUR;
   const priceHT_CHF  = Math.round(priceHT_EUR * FX);
 
-  // Mois d'immatriculation (pour exemption CO2)
-  let monthsReg = 99; // défaut = vieux = exempté
+  let monthsReg = 99;
   if (deal.first_reg_date) {
     const d = new Date(deal.first_reg_date);
     if (!isNaN(d.getTime()))
@@ -227,40 +233,75 @@ export function computeDeal(deal, globalState) {
     monthsReg = Math.round((Date.now() - new Date(deal.year, 0, 1).getTime()) / (30 * 24 * 3600 * 1000));
   }
 
-  // Landed cost
-  const landed = computeLanded(
-    priceHT_CHF, spec,
-    monthsReg, deal.km || 0,
-    tvaMode, deal.custom_transport, TRANSPORT
-  );
-
-  // Prix de revente (triangulation 3 niveaux)
-  const resale = computeResalePrice(spec, deal.year, deal.km, deal.eurotax_override);
-
-  // Marge
-  const marge = resale.price !== null
-    ? computeMarge(resale.price, landed.total, tvaMode)
-    : null;
-
-  // Taxe GE (info acheteur)
+  const landed = computeLanded(priceHT_CHF, spec, monthsReg, deal.km || 0, tvaMode, deal.custom_transport, TRANSPORT);
+  const resale  = computeResalePrice(spec, deal.year, deal.km, deal.eurotax_override, comparablesResult);
+  const marge   = resale.price !== null ? computeMarge(resale.price, landed.total, tvaMode) : null;
   const isElectric = spec.co2 === 0;
-  const taxeGE     = computeTaxeGE(spec.co2, spec.kg, deal.year, isElectric);
+  const taxeGE  = computeTaxeGE(spec.co2, spec.kg, deal.year, isElectric);
 
   return {
-    // Inputs résumés
     priceTTC_EUR, priceHT_EUR, priceHT_CHF,
-    isPro, vatOrigin, monthsReg,
-    tvaMode,
-    // Calculs
-    landed,
-    resale,
-    marge,
-    taxeGE,
-    spec,
-    // Flags
-    margeBlocked: resale.price === null,
-    margeBlockReason: resale.price === null ? 'Prix de revente inconnu — lancer benchmark CH ou saisir Eurotax' : null,
+    isPro, vatOrigin, monthsReg, tvaMode,
+    landed, resale, marge, taxeGE, spec,
+    margeBlocked:     resale.price === null,
+    margeBlockReason: resale.price === null ? 'Prix de revente inconnu — saisir Eurotax ou attendre scrape CH' : null,
   };
+}
+
+// Version async — charge les comparables CH depuis Supabase
+export async function computeDealAsync(deal, globalState, dbModule) {
+  const { SPECS } = globalState.config;
+  const spec = SPECS[`${deal.brand} ${deal.model}`];
+
+  let comparablesResult = null;
+  if (spec && deal.year && deal.km) {
+    // Trouver le model_slug depuis le modèle
+    const modelSlug = findModelSlug(deal.brand, deal.model);
+    if (modelSlug) {
+      const { rows, level, label } = await dbModule.getComparablesCH({
+        model_slug: modelSlug,
+        fuel_type:  deal.fuel_type,
+        version:    deal.version,
+        year:       deal.year,
+        km:         deal.km,
+      });
+      // Construire l'URL AS24.ch pour les comparables
+      const { buildAS24chUrl } = dbModule;
+      const urlParams = _levelToUrlParams(level, deal.year, deal.km);
+      const comparablesUrl = buildAS24chUrl ? buildAS24chUrl(modelSlug, urlParams) : null;
+      comparablesResult = { rows, level, label, comparablesUrl };
+    }
+  }
+
+  return computeDeal(deal, globalState, comparablesResult);
+}
+
+function _levelToUrlParams(level, year, km) {
+  const ranges = {
+    1: { yearDelta: 1, kmFactor: 0.3 },
+    2: { yearDelta: 1, kmFactor: 0.3 },
+    3: { yearDelta: 2, kmFactor: 0.5 },
+    4: { yearDelta: 2, kmFactor: 0.5 },
+  };
+  const r = ranges[level] || ranges[4];
+  return {
+    yearMin: year - r.yearDelta, yearMax: year + r.yearDelta,
+    kmMin: Math.round(km * (1 - r.kmFactor)), kmMax: Math.round(km * (1 + r.kmFactor)),
+  };
+}
+
+// Mapping marque+modèle → slug AS24
+function findModelSlug(brand, model) {
+  const m = model?.toLowerCase() || '';
+  if (m.includes('macan'))   return 'macan';
+  if (m.includes('cayenne')) return 'cayenne';
+  if (m.includes('defender 90') || m.includes('defender-90')) return 'defender-90';
+  if (m.includes('defender 130') || m.includes('defender-130')) return 'defender-130';
+  if (m.includes('defender')) return 'defender';
+  if (m.includes('evoque'))  return 'range-rover-evoque';
+  if (m.includes('sport'))   return 'range-rover-sport';
+  if (m.includes('range rover') || m.includes('range-rover')) return 'range-rover';
+  return null;
 }
 
 // ── NÉGOCIATEUR INVERSÉ ───────────────────────────────────────
