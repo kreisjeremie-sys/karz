@@ -79,7 +79,7 @@ function _buildFilters() {
             </label>`).join('')}
         </div>
       </div>
-      <div class="fg"><label>Année min</label><input type="number" id="f-ymin" placeholder="2019" min="2015" max="2025"></div>
+      <div class="fg"><label>Année min</label><input type="number" id="f-ymin" placeholder="2020" min="2015" max="2026"></div>
       <div class="fg"><label>Année max</label><input type="number" id="f-ymax" placeholder="2024" min="2015" max="2025"></div>
       <div class="fg"><label>Km max</label><input type="number" id="f-kmax" placeholder="80000"></div>
       <div class="fg"><label>Prix max EUR</label><input type="number" id="f-pmax" placeholder="200000"></div>
@@ -139,8 +139,10 @@ function _readFilters() {
   const brand    = document.getElementById('f-brand')?.value || '';
   const modelSlug= document.getElementById('f-model')?.value || '';
   // BUG FIX #3 : parseInt vide → NaN → || null correct
-  const yearMin  = parseInt(document.getElementById('f-ymin')?.value) || null;
-  const yearMax  = parseInt(document.getElementById('f-ymax')?.value) || null;
+  const yearMinRaw = document.getElementById('f-ymin')?.value;
+  const yearMaxRaw = document.getElementById('f-ymax')?.value;
+  const yearMin  = parseInt(yearMinRaw) || null;
+  const yearMax  = parseInt(yearMaxRaw) || null;
   const kmMax    = parseInt(document.getElementById('f-kmax')?.value) || null;
   const priceMax = parseInt(document.getElementById('f-pmax')?.value) || null;
   const margeMin = parseInt(document.getElementById('f-mmin')?.value) || null;
@@ -191,12 +193,14 @@ export async function runSearch() {
   listEl.innerHTML = `<div class="loading">Calcul des ${raw.length} annonces…</div>`;
 
   const FX        = state.params?.FX        || DEFAULTS.FX;
+  // Sanity check FX (doit être entre 0.80 et 1.20 pour EUR/CHF)
+  const fxSafe = (FX > 0.80 && FX < 1.20) ? FX : DEFAULTS.FX;
   const TVA_MODE_B= state.params?.TVA_MODE_B|| DEFAULTS.TVA_MODE_B;
   const TRANSPORT = state.params?.TRANSPORT || DEFAULTS.TRANSPORT;
 
   // 2. Calcul async pour chaque annonce
   const results = await Promise.all(raw.map(listing =>
-    _calcListing(listing, FX, TVA_MODE_B, TRANSPORT)
+    _calcListing(listing, fxSafe, TVA_MODE_B, TRANSPORT)
   ));
 
   // 3. Filtres côté client
@@ -241,7 +245,7 @@ export async function runSearch() {
 }
 
 // ── CALCUL PAR ANNONCE ────────────────────────────────────────
-async function _calcListing(listing, FX, TVA_MODE_B, TRANSPORT) {
+async function _calcListing(listing, fxSafe, TVA_MODE_B, TRANSPORT) {
   const tvaMode = TVA_MODE_B ? 'B' : 'A';
 
   // Trouver le spec dans SPECS
@@ -320,50 +324,62 @@ function _levelToUrlParams(level, year, km) {
 }
 
 // ── TROUVER LE SPEC ───────────────────────────────────────────
-// Règle de validation : prix annonce doit être entre 20% et 95% du MSRP
-// Évite les faux matchs (ex: Discovery Sport → Range Rover)
+// Matching strict : utilise vehicle.variant d'AS24 (ex: "Cayenne Turbo")
+// puis fallback sur model_slug → label MODELS → SPECS
 function _findSpec(listing) {
-  const price = listing.price_eur_ttc || 0;
-  const FX = window.KARZ?.state?.getState()?.params?.FX || 1.05;
-
-  function _isPlausible(spec) {
-    if (!spec?.msrp || !price) return true; // pas de MSRP = on accepte
-    const priceChf = price * FX;
-    // Prix annonce doit être entre 15% et 90% du MSRP (occasion d'occasion)
-    return priceChf >= spec.msrp * 0.15 && priceChf <= spec.msrp * 0.95;
+  const brand = listing.brand || '';
+  
+  // 1. Essai direct : brand + variant (le plus précis)
+  // AS24 stocke variant = "Cayenne Turbo", "Macan GTS", "Defender 110 D300 HSE"
+  if (listing.version) {
+    // Nettoyer le variant : retirer les mots superflus après la finition
+    const variant = listing.version
+      .replace(/\*.*$/, '')           // retirer tout après *
+      .replace(/\s+/g, ' ')           // normaliser espaces
+      .trim();
+    
+    // Essai exact
+    const keyExact = `${brand} ${variant}`;
+    if (SPECS[keyExact]) return SPECS[keyExact];
+    
+    // Essai avec mots significatifs du variant
+    // Ex: "Cayenne Turbo*UNFALLFREI*SD" → cherche "Cayenne Turbo" dans SPECS
+    const specKeys = Object.keys(SPECS).filter(k => k.startsWith(brand));
+    // Trier par longueur décroissante (plus spécifique en premier)
+    specKeys.sort((a, b) => b.length - a.length);
+    
+    for (const specKey of specKeys) {
+      const specModel = specKey.slice(brand.length + 1).toLowerCase();
+      const variantLow = variant.toLowerCase();
+      // Le variant doit COMMENCER par le modèle du spec
+      if (variantLow.startsWith(specModel) || variantLow.includes(specModel)) {
+        return SPECS[specKey];
+      }
+    }
   }
-
-  // Essai 1 : brand + model_full exact
-  if (listing.brand && listing.model_full) {
-    const k = `${listing.brand} ${listing.model_full}`;
-    if (SPECS[k] && _isPlausible(SPECS[k])) return SPECS[k];
-  }
-
-  // Essai 2 : brand + slug → label exact dans MODELS
-  if (listing.brand && listing.model_slug) {
+  
+  // 2. Essai par model_slug → label dans MODELS → SPECS
+  if (listing.model_slug) {
     const allModels = [...MODELS.porsche, ...MODELS.landrover];
     const m = allModels.find(m => m.slug === listing.model_slug);
     if (m) {
-      const k = `${listing.brand} ${m.label}`;
-      if (SPECS[k] && _isPlausible(SPECS[k])) return SPECS[k];
+      const key = `${brand} ${m.label}`;
+      if (SPECS[key]) return SPECS[key];
     }
-
-    // Essai 3 : slug → inclusion dans clé SPECS (avec validation prix)
+    
+    // 3. Fallback : slug contenu dans clé SPECS (le plus basique)
+    // Ex: model_slug="cayenne" → match "Porsche Cayenne" (version de base)
     const slug = listing.model_slug.toLowerCase().replace(/-/g, ' ');
-    const brandLow = (listing.brand || '').toLowerCase();
-    // Chercher le match le plus spécifique (clé la plus longue qui match)
+    const brandLow = brand.toLowerCase();
+    
+    // Chercher la version de BASE (clé la plus courte qui matche)
     const candidates = Object.keys(SPECS)
-      .filter(k =>
-        k.toLowerCase().startsWith(brandLow) &&
-        k.toLowerCase().includes(slug)
-      )
-      .sort((a, b) => b.length - a.length); // plus spécifique en premier
-
-    for (const cand of candidates) {
-      if (_isPlausible(SPECS[cand])) return SPECS[cand];
-    }
+      .filter(k => k.toLowerCase().startsWith(brandLow) && k.toLowerCase().includes(slug))
+      .sort((a, b) => a.length - b.length); // plus court = version de base
+    
+    if (candidates.length) return SPECS[candidates[0]];
   }
-
+  
   return null;
 }
 
@@ -487,6 +503,7 @@ function _renderCard(r, idx, FX) {
           ${listing.km ? fmt(listing.km) + ' km' : '—'} ·
           ${_normFuelLabel(listing.fuel_type)} ·
           ${listing.seller_type === 'pro' ? '<span class="badge bpro">Pro</span>' : '<span class="badge bpriv">Particulier</span>'}
+          ${listing.year >= 2025 && (listing.km || 0) < 10000 ? '<span class="badge" style="background:#FEE2E2;color:#991B1B">Quasi-neuf</span>' : ''}
           ${listing.seller_name && listing.seller_name !== '—' ? ' · ' + listing.seller_name : ''}
           ${listing.days_online ? ' · ' + listing.days_online + 'j en ligne' : ''}
         </div>
