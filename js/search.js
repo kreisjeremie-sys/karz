@@ -241,7 +241,7 @@ export async function runSearch() {
   }
 
   listEl.innerHTML = '';
-  filtered.forEach((r, i) => listEl.appendChild(_renderCard(r, i, FX)));
+  filtered.forEach((r, i) => listEl.appendChild(_renderCard(r, i, fxSafe)));
 }
 
 // ── CALCUL PAR ANNONCE ────────────────────────────────────────
@@ -255,7 +255,7 @@ async function _calcListing(listing, fxSafe, TVA_MODE_B, TRANSPORT) {
   const isPro       = listing.seller_type === 'pro';
   const priceTTC    = listing.price_eur_ttc || 0;
   const priceHT_EUR = isPro ? Math.round(priceTTC / (1 + vatOrigin)) : priceTTC;
-  const priceHT_CHF = Math.round(priceHT_EUR * FX);
+  const priceHT_CHF = Math.round(priceHT_EUR * fxSafe);
 
   // Mois depuis immatriculation (pour exemption CO2)
   let monthsReg = 99;
@@ -406,7 +406,7 @@ function fmt(n) {
 }
 
 // ── RENDU CARTE ───────────────────────────────────────────────
-function _renderCard(r, idx, FX) {
+function _renderCard(r, idx, fxRate) {
   const { listing, tvaMode, isPro, vatOrigin, priceTTC, priceHT_EUR, priceHT_CHF, landed, resale, marge, spec } = r;
 
   const flag     = FLAGS[listing.country] || '🌍';
@@ -425,7 +425,243 @@ function _renderCard(r, idx, FX) {
       <div class="ds-row deduct"><span>− TVA ${listing.country} ${vatPct}%</span><span>− €${fmt(vatDeduct)}</span></div>
       <div class="ds-row bold"><span>= Prix HT export</span><span>€${fmt(priceHT_EUR)} HT</span></div>` : `
       <div class="ds-row note"><span>Vendeur particulier — TVA non déductible</span><span></span></div>`}
-      <div class="ds-row"><span>× FX EUR/CHF ${(FX||1.05).toFixed(4)}</span><span>= CHF ${fmt(priceHT_CHF)}</span></div>
+      <div class="ds-row"><span>× FX EUR/CHF ${(fxRate||0.94).toFixed(4)}</span><span>= CHF ${fmt(priceHT_CHF)}</span></div>
+      <div class="ds-sep"></div>
+      <div class="ds-row cost"><span>+ Transport <span class="ds-src">estimation prudente haute</span></span><span>+ CHF ${fmt(landed.transport)}</span></div>
+      <div class="ds-row cost"><span>+ Impôt fédéral 4% <span class="ds-src">LJAUTO / OFDF</span></span><span>+ CHF ${fmt(landed.autoTax)}</span></div>
+      <div class="ds-row cost"><span>+ Frais fixes <span class="ds-src">CHF 20 douane + CHF 60 expertise + CHF 100 test</span></span><span>+ CHF ${fmt(landed.fixedFees)}</span></div>
+      <div class="ds-row ${tvaMode === 'B' ? 'zero' : 'cost'}">
+        <span>+ TVA CH 8.1% <span class="ds-src">${tvaMode === 'B' ? 'Mode B — récupérable' : 'Mode A — coût définitif'}</span></span>
+        <span>${tvaMode === 'B' ? 'CHF 0 net' : '+ CHF ' + fmt(landed.vatInLanded)}</span>
+      </div>
+      <div class="ds-row ${co2?.penalty > 0 ? 'cost' : 'zero'}">
+        <span>+ CO2 fédéral OFEN 2025
+          ${co2?.exempt ? `<span class="ds-src ok">✓ Exempté — ${co2.reason}</span>`
+          : co2?.couldBeExempt ? `<span class="ds-src warn">⚠ Pire cas — vérifier km > 5 000</span>`
+          : ''}
+        </span>
+        <span>${co2?.penalty > 0 ? '+ CHF ' + fmt(co2.penalty) : 'CHF 0 — Exempté'}</span>
+      </div>
+      <div class="ds-sep"></div>
+      <div class="ds-row total"><span>= LANDED NET</span><span>CHF ${fmt(landed.total)}</span></div>
+    </div>` : `
+    <div class="detail-section">
+      <div class="ds-note warn">⚠ Modèle non identifié dans la base KARZ — landed cost non calculable.<br>Modèle reçu : ${listing.model_full || listing.model_slug}</div>
+    </div>`;
+
+  // ── RESALE HTML ───────────────────────────────────────────
+  const levelColor = {0:'#185FA5',1:'#0F6E56',2:'#0F6E56',3:'#854F0B',4:'#854F0B',5:'#888'}[resale?.level] || '#888';
+  const levelLabel = {0:'Eurotax',1:'Comparables filtrés',2:'Comparables',3:'Comparables élargis',4:'Comparables élargis',5:'Estimation dépréciation'}[resale?.level] || '—';
+
+  const resaleHTML = resale && resale.price ? `
+    <div class="detail-section">
+      <div class="ds-title">REVENTE CH
+        <span class="ds-level" style="color:${levelColor}">
+          ${levelLabel}${resale.n > 0 ? ' · ' + resale.n + ' annonces' : ' · estimation'}
+        </span>
+      </div>
+      <div class="ds-note">${resale.label || ''}</div>
+      <div class="rs-stats-grid">
+        <div class="rs-stat-item primary">
+          <div class="rs-stat-l">P25 <span class="rs-cible">cible revente</span></div>
+          <div class="rs-stat-v">CHF ${fmt(resale.p25)}</div>
+        </div>
+        ${resale.p50 ? `<div class="rs-stat-item"><div class="rs-stat-l">Médiane</div><div class="rs-stat-v">CHF ${fmt(resale.p50)}</div></div>` : ''}
+        ${resale.mean ? `<div class="rs-stat-item"><div class="rs-stat-l">Moyenne</div><div class="rs-stat-v">CHF ${fmt(resale.mean)}</div></div>` : ''}
+        ${resale.p75 ? `<div class="rs-stat-item"><div class="rs-stat-l">P75</div><div class="rs-stat-v">CHF ${fmt(resale.p75)}</div></div>` : ''}
+      </div>
+      ${resale.isHypothesis ? `<div class="ds-note warn">⚠ Estimation — données CH insuffisantes pour ce profil exact</div>` : ''}
+      ${resale.comparablesUrl ? `<a class="rc-comparables-link" href="${resale.comparablesUrl}" target="_blank">↗ Voir les ${resale.n} annonces comparables sur AutoScout24.ch</a>` : ''}
+    </div>` : `
+    <div class="detail-section">
+      <div class="ds-title">REVENTE CH</div>
+      <div class="ds-note warn">⚠ Benchmark CH indisponible pour ce profil — saisir la cote Eurotax après ajout au pipeline</div>
+    </div>`;
+
+  // ── MARGE HTML ────────────────────────────────────────────
+  const margeHTML = `
+    <div class="detail-marge ${margeCls}">
+      <span>MARGE ${tvaMode === 'B' ? 'NETTE HT (Mode B)' : 'NETTE TTC (Mode A)'}</span>
+      <span class="marge-val">${
+        r.margeBlocked ? '⚠ Benchmark CH indisponible'
+        : margeNum !== null ? 'CHF ' + (margeNum >= 0 ? '+' : '') + fmt(margeNum)
+        : '—'
+      }</span>
+    </div>`;
+
+  // ── ASSEMBLAGE ────────────────────────────────────────────
+  const card = document.createElement('div');
+  card.className = 'result-card';
+
+  card.innerHTML = `
+    <div class="rc-header">
+      <div class="rc-rank">#${idx + 1}</div>
+      <span class="rc-flag">${flag}</span>
+      <div class="rc-info">
+        <div class="rc-name">${listing.model_full || listing.brand + ' ' + listing.model_slug} ${listing.year || '—'}</div>
+        <div class="rc-meta">
+          ${listing.km ? fmt(listing.km) + ' km' : '—'} ·
+          ${_normFuelLabel(listing.fuel_type)} ·
+          ${listing.seller_type === 'pro' ? '<span class="badge bpro">Pro</span>' : '<span class="badge bpriv">Particulier</span>'}
+          ${listing.year >= 2025 && (listing.km || 0) < 10000 ? '<span class="badge" style="background:#FEE2E2;color:#991B1B">Quasi-neuf</span>' : ''}
+          ${listing.seller_name && listing.seller_name !== '—' ? ' · ' + listing.seller_name : ''}
+          ${listing.days_online ? ' · ' + listing.days_online + 'j en ligne' : ''}
+        </div>
+      </div>
+      <div class="rc-right">
+        <div class="rc-price">€${fmt(priceTTC)} <span class="rc-ttc">TTC</span></div>
+        <div class="rc-marge-preview ${margeCls}">
+          ${r.margeBlocked
+            ? '<span class="warn-sm">⚠ Benchmark requis</span>'
+            : margeNum !== null ? 'CHF ' + (margeNum >= 0 ? '+' : '') + fmt(margeNum) : '—'}
+        </div>
+      </div>
+      <div class="rc-chevron">▼</div>
+      ${listing.listing_url
+        ? `<a class="rc-link" href="${listing.listing_url}" target="_blank" onclick="event.stopPropagation()">↗</a>`
+        : ''}
+    </div>
+    <div class="rc-detail">
+      ${landedHTML}
+      ${resaleHTML}
+      ${margeHTML}
+      <div class="rc-actions">
+        <button class="btn-add-pipeline" data-listing="${_escJson(listing)}">
+          + Ajouter au pipeline
+        </button>
+      </div>
+    </div>`;
+
+  // BUG FIX #7 : event listener après innerHTML
+  card.querySelector('.rc-header').addEventListener('click', e => {
+    if (e.target.closest('a') || e.target.closest('button')) return;
+    card.classList.toggle('expanded');
+  });
+
+  card.querySelector('.btn-add-pipeline').addEventListener('click', e => {
+    e.stopPropagation();
+    const data = e.currentTarget.dataset.listing;
+    window.KARZ.pipeline.addFromListing(e, data);
+  });
+
+  return card;
+}
+
+function _escJson(obj) {
+  return JSON.stringify(JSON.stringify(obj)).slice(1, -1);
+}
+function _levelToUrlParams(level, year, km) {
+  const cfg = { 1:{y:1,k:0.3}, 2:{y:1,k:0.3}, 3:{y:2,k:0.5}, 4:{y:2,k:0.5} };
+  const c = cfg[level] || cfg[4];
+  return {
+    yearMin: year - c.y, yearMax: year + c.y,
+    kmMin: Math.round(km * (1 - c.k)), kmMax: Math.round(km * (1 + c.k))
+  };
+}
+
+// ── TROUVER LE SPEC ───────────────────────────────────────────
+// Matching strict : utilise vehicle.variant d'AS24 (ex: "Cayenne Turbo")
+// puis fallback sur model_slug → label MODELS → SPECS
+function _findSpec(listing) {
+  const brand = listing.brand || '';
+  
+  // 1. Essai direct : brand + variant (le plus précis)
+  // AS24 stocke variant = "Cayenne Turbo", "Macan GTS", "Defender 110 D300 HSE"
+  if (listing.version) {
+    // Nettoyer le variant : retirer les mots superflus après la finition
+    const variant = listing.version
+      .replace(/\*.*$/, '')           // retirer tout après *
+      .replace(/\s+/g, ' ')           // normaliser espaces
+      .trim();
+    
+    // Essai exact
+    const keyExact = `${brand} ${variant}`;
+    if (SPECS[keyExact]) return SPECS[keyExact];
+    
+    // Essai avec mots significatifs du variant
+    // Ex: "Cayenne Turbo*UNFALLFREI*SD" → cherche "Cayenne Turbo" dans SPECS
+    const specKeys = Object.keys(SPECS).filter(k => k.startsWith(brand));
+    // Trier par longueur décroissante (plus spécifique en premier)
+    specKeys.sort((a, b) => b.length - a.length);
+    
+    for (const specKey of specKeys) {
+      const specModel = specKey.slice(brand.length + 1).toLowerCase();
+      const variantLow = variant.toLowerCase();
+      // Le variant doit COMMENCER par le modèle du spec
+      if (variantLow.startsWith(specModel) || variantLow.includes(specModel)) {
+        return SPECS[specKey];
+      }
+    }
+  }
+  
+  // 2. Essai par model_slug → label dans MODELS → SPECS
+  if (listing.model_slug) {
+    const allModels = [...MODELS.porsche, ...MODELS.landrover];
+    const m = allModels.find(m => m.slug === listing.model_slug);
+    if (m) {
+      const key = `${brand} ${m.label}`;
+      if (SPECS[key]) return SPECS[key];
+    }
+    
+    // 3. Fallback : slug contenu dans clé SPECS (le plus basique)
+    // Ex: model_slug="cayenne" → match "Porsche Cayenne" (version de base)
+    const slug = listing.model_slug.toLowerCase().replace(/-/g, ' ');
+    const brandLow = brand.toLowerCase();
+    
+    // Chercher la version de BASE (clé la plus courte qui matche)
+    const candidates = Object.keys(SPECS)
+      .filter(k => k.toLowerCase().startsWith(brandLow) && k.toLowerCase().includes(slug))
+      .sort((a, b) => a.length - b.length); // plus court = version de base
+    
+    if (candidates.length) return SPECS[candidates[0]];
+  }
+  
+  return null;
+}
+
+// ── NORMALISATION CARBURANT ───────────────────────────────────
+function _normFuel(fuel) {
+  if (!fuel) return '';
+  const f = fuel.toLowerCase();
+  if (f.includes('diesel') || f === 'd') return 'diesel';
+  if (f.includes('electric') || f.includes('elektr') || f.includes('électr')) return 'electrique';
+  if (f.includes('hybrid') || f.includes('hybride') || f.includes('plug')) return 'hybride';
+  if (f.includes('essence') || f.includes('petrol') || f.includes('gasolin') || f.includes('benzin')) return 'essence';
+  return fuel.toLowerCase();
+}
+
+function _normFuelLabel(fuel) {
+  const f = _normFuel(fuel);
+  return { diesel:'Diesel', essence:'Essence', hybride:'Hybride', electrique:'Électrique' }[f] || fuel || '—';
+}
+
+// ── FORMATAGE NOMBRES ─────────────────────────────────────────
+function fmt(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return Math.round(n).toLocaleString('fr-CH');
+}
+
+// ── RENDU CARTE ───────────────────────────────────────────────
+function _renderCard(r, idx, fxRate) {
+  const { listing, tvaMode, isPro, vatOrigin, priceTTC, priceHT_EUR, priceHT_CHF, landed, resale, marge, spec } = r;
+
+  const flag     = FLAGS[listing.country] || '🌍';
+  const margeNum = (marge !== null && marge !== undefined && !isNaN(marge)) ? Math.round(marge) : null;
+  const margeCls = margeNum === null ? '' : margeNum >= 0 ? 'profit' : 'loss';
+  const vatPct   = Math.round(vatOrigin * 100);
+  const vatDeduct= isPro ? Math.round(priceTTC - priceHT_EUR) : 0;
+  const co2      = landed?.co2;
+
+  // ── LANDED HTML ───────────────────────────────────────────
+  const landedHTML = landed ? `
+    <div class="detail-section">
+      <div class="ds-title">LANDED COST</div>
+      <div class="ds-row"><span>Prix annonce</span><span>€${fmt(priceTTC)} TTC</span></div>
+      ${isPro ? `
+      <div class="ds-row deduct"><span>− TVA ${listing.country} ${vatPct}%</span><span>− €${fmt(vatDeduct)}</span></div>
+      <div class="ds-row bold"><span>= Prix HT export</span><span>€${fmt(priceHT_EUR)} HT</span></div>` : `
+      <div class="ds-row note"><span>Vendeur particulier — TVA non déductible</span><span></span></div>`}
+      <div class="ds-row"><span>× FX EUR/CHF ${(fxRate||0.94).toFixed(4)}</span><span>= CHF ${fmt(priceHT_CHF)}</span></div>
       <div class="ds-sep"></div>
       <div class="ds-row cost"><span>+ Transport <span class="ds-src">estimation prudente haute</span></span><span>+ CHF ${fmt(landed.transport)}</span></div>
       <div class="ds-row cost"><span>+ Impôt fédéral 4% <span class="ds-src">LJAUTO / OFDF</span></span><span>+ CHF ${fmt(landed.autoTax)}</span></div>
