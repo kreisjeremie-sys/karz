@@ -1,6 +1,10 @@
 // scrape-eu.js FINAL — Structure AS24 confirmée
 import fetch from 'node-fetch';
 
+console.log('=== KARZ scrape-eu.js starting ===');
+console.log('SUPABASE_KEY present:', !!process.env.SUPABASE_KEY);
+console.log('Node version:', process.version);
+
 const SB_URL = 'https://kkytyznvqwptdnsgodlo.supabase.co';
 const SB_KEY = process.env.SUPABASE_KEY;
 if (!SB_KEY) { console.error('SUPABASE_KEY manquant'); process.exit(1); }
@@ -46,6 +50,29 @@ async function scrapePage(makeSlug, modelSlug, cy, page = 1) {
   } catch(e) { console.log(`  [ERR] ${e.message}`); return []; }
 }
 
+
+// Extraire year et fuel depuis l'URL AS24 (fallback si vehicle.* est vide)
+function extractFromUrl(url) {
+  if (!url) return { year: null, fuel: null };
+  const slug = url.toLowerCase();
+  
+  // Année : 4 chiffres entre 2015 et 2026
+  const yearMatch = slug.match(/-(20(?:1[5-9]|2[0-6]))-/);
+  const year = yearMatch ? parseInt(yearMatch[1]) : null;
+  
+  // Carburant
+  let fuel = null;
+  if (slug.includes('e-hybrid') || slug.includes('plug-in') || slug.includes('phev')) fuel = 'hybride';
+  else if (slug.includes('hybrid')) fuel = 'hybride';
+  else if (slug.includes('electric') || slug.includes('elektro') || slug.includes('-ev-')) fuel = 'electrique';
+  else if (slug.includes('diesel') || slug.includes('-tdi-') || slug.includes('-cdi-')) fuel = 'diesel';
+  else if (slug.includes('gasoline') || slug.includes('petrol') || slug.includes('-tfsi-') || 
+           slug.includes('-tsi-') || slug.includes('-gts-') || slug.includes('turbo') ||
+           slug.includes('-v6-') || slug.includes('-v8-') || slug.includes('benzin')) fuel = 'essence';
+  
+  return { year, fuel };
+}
+
 function normalizeItem(item, model, country, batchId) {
   try {
     const priceRaw = item.price?.priceFormatted?.replace(/[^0-9]/g, '');
@@ -59,6 +86,11 @@ function normalizeItem(item, model, country, batchId) {
     const firstReg = v.firstRegistration || item.tracking?.first_registration || '';
     const year = parseInt(firstReg?.match(/\b(19|20)\d{2}\b/)?.[0]) || null;
     const fuel = (v.fuelCategory?.label || '').toLowerCase() || null;
+    
+    // Fallback : extraire depuis l'URL si vehicle.* est vide
+    const urlData = (!year || !fuel) ? extractFromUrl(fullUrl) : { year: null, fuel: null };
+    const finalYear = year || urlData.year;
+    const finalFuel = fuel || urlData.fuel;
     const sellerType = (item.seller?.type || '').toLowerCase();
     const isPro = sellerType === 'd' || sellerType.includes('dealer') || sellerType.includes('pro');
     const title = `${v.make || ''} ${v.model || ''} ${v.version || ''}`.trim();
@@ -68,9 +100,9 @@ function normalizeItem(item, model, country, batchId) {
       model_slug:     model.modelSlug,
       model_full:     title || model.brand,
       version:        v.version || null,
-      year, km,
+      year: finalYear, km,
       price_eur_ttc:  Math.round(price),
-      fuel_type:      fuel,
+      fuel_type:      finalFuel || fuel,
       seller_type:    isPro ? 'pro' : 'private',
       seller_name:    item.seller?.companyName || '—',
       country,
@@ -85,6 +117,9 @@ function normalizeItem(item, model, country, batchId) {
 
 async function upsert(table, rows) {
   if (!rows.length) return 0;
+  // Utiliser UPSERT avec mise à jour forcée de toutes les colonnes
+  // Prefer: resolution=merge-duplicates met à jour toutes les colonnes
+  // Pour forcer la mise à jour des colonnes null→valeur, on ajoute ignoreDuplicates=false
   const r = await fetch(`${SB_URL}/rest/v1/${table}?on_conflict=listing_url`, {
     method: 'POST',
     headers: {
@@ -94,8 +129,47 @@ async function upsert(table, rows) {
     },
     body: JSON.stringify(rows),
   });
-  if (!r.ok) throw new Error(`${r.status} ${await r.text().then(t=>t.slice(0,150))}`);
+  if (!r.ok) {
+    const errText = await r.text();
+    // Erreur de doublon dans le même batch — splitter en deux et réessayer
+    if (errText.includes('21000') && rows.length > 1) {
+      const mid = Math.floor(rows.length / 2);
+      const saved1 = await upsert(table, rows.slice(0, mid));
+      const saved2 = await upsert(table, rows.slice(mid));
+      return saved1 + saved2;
+    }
+    throw new Error(`${r.status} ${errText.slice(0,150)}`);
+  }
   return rows.length;
+}
+
+// Mettre à jour explicitement year et fuel_type pour les annonces sans ces données
+async function updateMissingFields(table, rows) {
+  let updated = 0;
+  for (const row of rows) {
+    if (!row.year && !row.fuel_type) continue; // rien à mettre à jour
+    if (!row.listing_url) continue;
+    const r = await fetch(
+      `${SB_URL}/rest/v1/${table}?listing_url=eq.${encodeURIComponent(row.listing_url)}`,
+      {
+        method: 'PATCH',
+        headers: {
+          apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({
+          year: row.year,
+          fuel_type: row.fuel_type,
+          km: row.km,
+          batch_id: row.batch_id,
+          last_seen_at: row.last_seen_at,
+        }),
+      }
+    );
+    if (r.ok) updated++;
+  }
+  return updated;
 }
 
 
@@ -197,7 +271,14 @@ async function main() {
       try {
         const saved = await upsert('listings_eu', rows);
         totalSaved += saved;
-        console.log(`  [SAVED] ${saved}`);
+        // Mettre à jour year/fuel sur les lignes existantes
+        const rowsWithData = rows.filter(r => r.year || r.fuel_type);
+        if (rowsWithData.length) {
+          const upd = await updateMissingFields('listings_eu', rowsWithData);
+          console.log(`  [SAVED] ${saved} | [UPDATED] ${upd} fields`);
+        } else {
+          console.log(`  [SAVED] ${saved}`);
+        }
       } catch(e) { console.error(`  [ERR] ${e.message}`); errors++; }
       await new Promise(r => setTimeout(r, 1000));
     }
