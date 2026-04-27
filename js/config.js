@@ -107,7 +107,7 @@ export const LEGAL = {
 
 // ── PARAMÈTRES OPÉRATIONNELS — modifiables par Admin ─────────
 export const DEFAULTS = {
-  FX:         1.05,
+  FX:         0.94,  // EUR/CHF réel avril 2026 — mis à jour par api/fx.js
   TRANSPORT:  1500,  // CHF — estimation prudente haute
   TVA_MODE_B: false,
 };
