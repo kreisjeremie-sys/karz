@@ -177,7 +177,10 @@ export function computeResalePrice(spec, year, km, eurotaxOverride, comparablesR
   }
 
   const currentYear = new Date().getFullYear();
-  const ageYears    = Math.max(0, currentYear - (year || currentYear));
+  let ageYears = Math.max(0, currentYear - (year || currentYear));
+  // Si year est null ou égal à l'année courante, estimer 1 an minimum
+  // pour éviter revente = MSRP (marge fictive)
+  if (ageYears === 0 && (!year || year >= currentYear)) ageYears = 1;
   let depreciatedValue = spec.msrp;
   for (let y = 1; y <= ageYears; y++) {
     const rate = DEPRECIATION.rates[y] ?? DEPRECIATION.rateDefault;
