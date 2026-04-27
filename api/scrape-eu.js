@@ -99,6 +99,11 @@ async function upsert(table, rows) {
 }
 
 
+function pickStr(...vals) {
+  for (const v of vals) { if (v && String(v).trim()) return String(v).trim(); }
+  return '';
+}
+
 // ── MOBILE.DE — source complémentaire Allemagne ───────────────
 async function scrapeMobileDeModels(model, batchId) {
   // Mobile.de utilise des IDs numériques pour marques/modèles
