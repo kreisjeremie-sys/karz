@@ -320,28 +320,50 @@ function _levelToUrlParams(level, year, km) {
 }
 
 // ── TROUVER LE SPEC ───────────────────────────────────────────
+// Règle de validation : prix annonce doit être entre 20% et 95% du MSRP
+// Évite les faux matchs (ex: Discovery Sport → Range Rover)
 function _findSpec(listing) {
+  const price = listing.price_eur_ttc || 0;
+  const FX = window.KARZ?.state?.getState()?.params?.FX || 1.05;
+
+  function _isPlausible(spec) {
+    if (!spec?.msrp || !price) return true; // pas de MSRP = on accepte
+    const priceChf = price * FX;
+    // Prix annonce doit être entre 15% et 90% du MSRP (occasion d'occasion)
+    return priceChf >= spec.msrp * 0.15 && priceChf <= spec.msrp * 0.95;
+  }
+
   // Essai 1 : brand + model_full exact
   if (listing.brand && listing.model_full) {
     const k = `${listing.brand} ${listing.model_full}`;
-    if (SPECS[k]) return SPECS[k];
+    if (SPECS[k] && _isPlausible(SPECS[k])) return SPECS[k];
   }
-  // Essai 2 : brand + slug traduit en label
+
+  // Essai 2 : brand + slug → label exact dans MODELS
   if (listing.brand && listing.model_slug) {
     const allModels = [...MODELS.porsche, ...MODELS.landrover];
     const m = allModels.find(m => m.slug === listing.model_slug);
     if (m) {
       const k = `${listing.brand} ${m.label}`;
-      if (SPECS[k]) return SPECS[k];
+      if (SPECS[k] && _isPlausible(SPECS[k])) return SPECS[k];
     }
-    // Essai 3 : cherche dans SPECS par inclusion du slug
+
+    // Essai 3 : slug → inclusion dans clé SPECS (avec validation prix)
     const slug = listing.model_slug.toLowerCase().replace(/-/g, ' ');
-    const found = Object.keys(SPECS).find(k =>
-      k.toLowerCase().includes(slug) &&
-      k.toLowerCase().startsWith((listing.brand || '').toLowerCase())
-    );
-    if (found) return SPECS[found];
+    const brandLow = (listing.brand || '').toLowerCase();
+    // Chercher le match le plus spécifique (clé la plus longue qui match)
+    const candidates = Object.keys(SPECS)
+      .filter(k =>
+        k.toLowerCase().startsWith(brandLow) &&
+        k.toLowerCase().includes(slug)
+      )
+      .sort((a, b) => b.length - a.length); // plus spécifique en premier
+
+    for (const cand of candidates) {
+      if (_isPlausible(SPECS[cand])) return SPECS[cand];
+    }
   }
+
   return null;
 }
 
