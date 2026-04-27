@@ -1,138 +1,212 @@
-// scrape-eu.js FINAL — Structure AS24 confirmée
-import fetch from 'node-fetch';
+// api/scrape-eu.js — Trigger scrape EU via Apify
+// Appelé manuellement depuis Admin OU automatiquement via GitHub Actions cron
+// La logique est inline ici car Vercel serverless ne supporte pas les imports relatifs
 
-const SB_URL = 'https://kkytyznvqwptdnsgodlo.supabase.co';
-const SB_KEY = process.env.SUPABASE_KEY;
-if (!SB_KEY) { console.error('SUPABASE_KEY manquant'); process.exit(1); }
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST' && req.method !== 'GET')
+    return res.status(405).json({ error: 'Method not allowed' });
 
-const HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'de-CH,de;q=0.9,fr;q=0.8,en;q=0.7',
-  'Accept-Encoding': 'gzip, deflate, br',
+  const TOKEN = process.env.APIFY_TOKEN;
+  if (!TOKEN) return res.status(500).json({ error: 'APIFY_TOKEN manquant dans Vercel Environment Variables' });
+
+  const SB_URL = 'https://kkytyznvqwptdnsgodlo.supabase.co';
+  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreXR5em52cXdwdGRuc2dvZGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzUyNzksImV4cCI6MjA5MjQ1MTI3OX0.XLYgXXUkxAkHXaWCc4diAclSpLxLpsZV_NYohr9cSlg';
+
+  try {
+    const result = await runScrapeEU(TOKEN, SB_URL, SB_KEY);
+    return res.status(200).json({ success: true, ...result });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ─── LOGIQUE SCRAPE EU (inline) ─────────────────────────────────
+
+const EU_MARKETS = {
+  DE: { models: 'all', sources: ['as24', 'mobilede'] },
+  FR: { models: 'all', sources: ['as24'] },
+  BE: { models: ['defender-110','range-rover','range-rover-sport','cayenne'], sources: ['as24'] },
+  ES: { models: ['cayenne','macan','range-rover-sport','defender-110'],       sources: ['as24'] },
 };
 
-const MODELS = [
-  { brand:'Porsche',    makeSlug:'porsche',    modelSlug:'macan'              },
-  { brand:'Porsche',    makeSlug:'porsche',    modelSlug:'cayenne'            },
-  { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'defender-90'        },
-  { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'defender-110'       },
-  { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'defender-130'       },
-  { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'range-rover'        },
-  { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'range-rover-sport'  },
-  { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'range-rover-evoque' },
+const ALL_MODELS = [
+  { slug:'macan',                    brand:'porsche',    label:'Porsche Macan' },
+  { slug:'cayenne',                  brand:'porsche',    label:'Porsche Cayenne' },
+  { slug:'defender-90',              brand:'land-rover', label:'LR Defender 90' },
+  { slug:'defender-110',             brand:'land-rover', label:'LR Defender 110' },
+  { slug:'defender-130',             brand:'land-rover', label:'LR Defender 130' },
+  { slug:'range-rover',              brand:'land-rover', label:'Range Rover' },
+  { slug:'range-rover-sport',        brand:'land-rover', label:'Range Rover Sport' },
+  { slug:'range-rover-evoque',       brand:'land-rover', label:'Range Rover Evoque' },
 ];
 
-const MARKETS = {
-  DE: { cy:'D',   models:'all' },
-  FR: { cy:'F',   models:'all' },
-  BE: { cy:'B',   models:['defender-110','range-rover','range-rover-sport','cayenne'] },
-  ES: { cy:'E',   models:['cayenne','macan','range-rover-sport','defender-110'] },
-};
+const CY_MAP = { DE:'D', FR:'F', BE:'B', ES:'E' };
 
-async function scrapePage(makeSlug, modelSlug, cy, page = 1) {
-  const url = `https://www.autoscout24.com/lst/${makeSlug}/${modelSlug}?atype=C&cy=${cy}&ustate=U,N&sort=age&desc=1&page=${page}&fregfrom=2018`;
-  try {
-    const r = await fetch(url, { headers: HEADERS });
-    if (!r.ok) { console.log(`  [${r.status}]`); return []; }
-    const html = await r.text();
-    const m = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
-    if (!m) return [];
-    const data = JSON.parse(m[1]);
-    const listings = data?.props?.pageProps?.listings;
-    if (!Array.isArray(listings) || !listings.length) return [];
-    console.log(`  [OK] ${makeSlug}/${modelSlug} ${cy} p${page}: ${listings.length} annonces`);
-    return listings;
-  } catch(e) { console.log(`  [ERR] ${e.message}`); return []; }
+async function runScrapeEU(apifyToken, sbUrl, sbKey) {
+  const batchId = new Date().toISOString().slice(0, 10) + '-EU';
+  const summary = { totalSaved: 0, totalRetired: 0, errors: [], runsCompleted: 0 };
+
+  for (const [country, cfg] of Object.entries(EU_MARKETS)) {
+    const models = cfg.models === 'all' ? ALL_MODELS
+      : ALL_MODELS.filter(m => cfg.models.includes(m.slug));
+
+    for (const source of cfg.sources) {
+      for (const model of models) {
+        try {
+          const url = source === 'mobilede'
+            ? `https://suchen.mobile.de/fahrzeuge/search.html?dam=0&isSearchRequest=true&ms%5B0%5D%5Bmn%5D=${encodeURIComponent(model.brand === 'porsche' ? 'Porsche' : 'Land Rover')}`
+            : `https://www.autoscout24.com/lst/${model.brand}/${model.slug}?atype=C&cy=${CY_MAP[country]}&ustate=U&sort=age&desc=1&fregfrom=2019`;
+
+          const items = await scrapeApify(apifyToken, url, source === 'mobilede' ? 'mobilede' : 'as24', 25);
+          if (!items?.length) continue;
+
+          const rows = items.map(it => normalizeListing(it, country, source, model, batchId)).filter(Boolean);
+          const saved = await upsertListings(sbUrl, sbKey, 'listings_eu', rows);
+          summary.totalSaved += saved;
+
+          const seenUrls = rows.map(r => r.listing_url).filter(Boolean);
+          const retired  = await markTombstones(sbUrl, sbKey, 'listings_eu', {
+            country, source, model_slug: model.slug, seenUrls,
+          });
+          summary.totalRetired += retired;
+          summary.runsCompleted++;
+          await new Promise(r => setTimeout(r, 1000));
+        } catch (e) {
+          summary.errors.push(`${country}/${source}/${model.slug}: ${e.message}`);
+        }
+      }
+    }
+  }
+  return { batchId, ...summary };
 }
 
-function normalizeItem(item, model, country, batchId) {
-  try {
-    const priceRaw = item.price?.priceFormatted?.replace(/[^0-9]/g, '');
-    const price = parseInt(priceRaw) || 0;
-    if (!price || price < 3000) return null;
-    const url = item.url;
-    if (!url) return null;
-    const fullUrl = url.startsWith('http') ? url : 'https://www.autoscout24.com' + url;
-    const v = item.vehicle || {};
-    const km = parseInt(v.mileage?.value || item.tracking?.mileage || 0) || null;
-    const firstReg = v.firstRegistration || item.tracking?.first_registration || '';
-    const year = parseInt(firstReg?.match(/\b(19|20)\d{2}\b/)?.[0]) || null;
-    const fuel = (v.fuelCategory?.label || '').toLowerCase() || null;
-    const sellerType = (item.seller?.type || '').toLowerCase();
-    const isPro = sellerType === 'd' || sellerType.includes('dealer') || sellerType.includes('pro');
-    const title = `${v.make || ''} ${v.model || ''} ${v.version || ''}`.trim();
-    return {
-      listing_url:    fullUrl,
-      brand:          model.brand,
-      model_slug:     model.modelSlug,
-      model_full:     title || model.brand,
-      version:        v.version || null,
-      year, km,
-      price_eur_ttc:  Math.round(price),
-      fuel_type:      fuel,
-      seller_type:    isPro ? 'pro' : 'private',
-      seller_name:    item.seller?.companyName || '—',
-      country,
-      source:         'as24',
-      days_online:    parseInt(item.statistics?.daysOnMarket || 0) || null,
-      first_reg_date: firstReg || null,
-      batch_id:       batchId,
-      last_seen_at:   new Date().toISOString(),
-    };
-  } catch(e) { return null; }
+async function scrapeApify(token, url, source, maxItems) {
+  const actors = source === 'mobilede'
+    ? ['misceres~mobile-de-scraper']
+    : ['automation-lab~autoscout24-scraper', 'misceres~autoscout24-scraper'];
+  const input = { startUrls: [{ url }], maxItems };
+  for (const actor of actors) {
+    try {
+      const r = await fetch(
+        `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${token}&timeout=120&memory=512`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }
+      );
+      if (!r.ok) continue;
+      const data = await r.json();
+      if (data?.length) return data;
+    } catch (e) { continue; }
+  }
+  return [];
 }
 
-async function upsert(table, rows) {
+function normalizeListing(item, country, source, model, batchId) {
+  // Prix — AS24 stocke dans price.priceFormatted "€ 47,990" ou price directement
+  const priceRaw = item.price?.priceFormatted || item.price?.amount || item.price;
+  const priceTTC = typeof priceRaw === 'string'
+    ? parseInt(priceRaw.replace(/[^0-9]/g, '')) || 0
+    : pickNum(priceRaw, item.tracking?.price, item.publicPrice);
+  if (!priceTTC || priceTTC < 5000) return null;
+
+  // Kilomètres — AS24 : item.vehicle.mileage = {value: N, unit: 'km'}
+  const mileageObj = item.vehicle?.mileage;
+  const km = pickNum(
+    mileageObj?.value,
+    item.tracking?.mileage,
+    item.mileage,
+    item.km
+  );
+
+  // Première immatriculation — AS24 : item.vehicle.firstRegistration = "2022-03"
+  const yearStr = pickStr(
+    item.vehicle?.firstRegistration,
+    item.firstRegistrationDate,
+    item.tracking?.first_registration,
+    item.firstRegistration
+  );
+  const year = parseInt(yearStr?.match(/\b(19|20)\d{2}\b/)?.[0]) || null;
+
+  const url = pickStr(item.url, item.listingUrl, item.adUrl, item.link);
+  if (!url) return null;
+
+  // Carburant — AS24 : item.vehicle.fuelCategory.label = "Diesel"
+  const fuel = pickStr(
+    item.vehicle?.fuelCategory?.label,
+    item.fuelType,
+    item.fuel,
+    item.tracking?.fuel_type
+  )?.toLowerCase() || null;
+
+  const sellerType = pickStr(item.seller?.type, item.sellerType, item.dealer?.type)?.toLowerCase() || '';
+  return {
+    listing_url:    url,
+    brand:          model.brand === 'porsche' ? 'Porsche' : 'Land Rover',
+    model_slug:     model.slug,
+    model_full:     pickStr(item.title, item.name, model.label),
+    version:        pickStr(item.version, item.variant, item.trim),
+    year:           year,
+    km:             km,
+    price_eur_ttc:  Math.round(priceTTC),
+    fuel_type:      fuel,
+    seller_type:    sellerType.includes('dealer') || sellerType.includes('pro') ? 'pro'
+                    : sellerType.includes('priv') ? 'private' : 'unknown',
+    seller_name:    pickStr(item.dealerName, item.seller?.name, item.sellerName) || '—',
+    country:        country,
+    days_online:    pickNum(item.daysOnMarket, item.daysOnline) || null,
+    co2_wltp:       pickNum(item.co2Emission, item.tracking?.co2) || null,
+    weight_kg:      pickNum(item.bodyWeight, item.weight) || null,
+    first_reg_date: yearStr || null,
+    source:         source,
+    batch_id:       batchId,
+    last_seen_at:   new Date().toISOString(),
+  };
+}
+
+function pickNum(...vals) {
+  for (const v of vals) {
+    const n = parseFloat(v);
+    if (!isNaN(n) && n > 0) return n;
+  }
+  return 0;
+}
+function pickStr(...vals) {
+  for (const v of vals) { if (v && String(v).trim()) return String(v).trim(); }
+  return '';
+}
+
+async function upsertListings(sbUrl, sbKey, table, rows) {
   if (!rows.length) return 0;
-  const r = await fetch(`${SB_URL}/rest/v1/${table}?on_conflict=listing_url`, {
+  const r = await fetch(`${sbUrl}/rest/v1/${table}?on_conflict=listing_url`, {
     method: 'POST',
     headers: {
-      apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates,return=minimal',
+      apikey: sbKey, Authorization: `Bearer ${sbKey}`,
+      'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
     },
     body: JSON.stringify(rows),
   });
-  if (!r.ok) throw new Error(`${r.status} ${await r.text().then(t=>t.slice(0,150))}`);
+  if (!r.ok) {
+    const txt = await r.text();
+    throw new Error(`Supabase upsert: ${r.status} ${txt.slice(0,150)}`);
+  }
   return rows.length;
 }
 
-async function main() {
-  const batchId = new Date().toISOString().slice(0, 10) + '-EU';
-  console.log(`\n=== KARZ Scrape EU FINAL — ${batchId} ===\n`);
-  let totalSaved = 0, errors = 0;
-
-  for (const [country, cfg] of Object.entries(MARKETS)) {
-    const models = cfg.models === 'all' ? MODELS
-      : MODELS.filter(m => cfg.models.includes(m.modelSlug));
-
-    for (const model of models) {
-      console.log(`\n[${country}] ${model.brand} ${model.modelSlug}`);
-      const allRaw = [];
-      for (const page of [1, 2]) {
-        const items = await scrapePage(model.makeSlug, model.modelSlug, cfg.cy, page);
-        if (!items.length) break;
-        allRaw.push(...items);
-        if (items.length < 15) break;
-        await new Promise(r => setTimeout(r, 1500));
-      }
-      if (!allRaw.length) { errors++; continue; }
-      const rows = allRaw.map(it => normalizeItem(it, model, country, batchId)).filter(Boolean);
-      console.log(`  [NORMALIZED] ${rows.length}/${allRaw.length}`);
-      if (!rows.length) { errors++; continue; }
-      try {
-        const saved = await upsert('listings_eu', rows);
-        totalSaved += saved;
-        console.log(`  [SAVED] ${saved}`);
-      } catch(e) { console.error(`  [ERR] ${e.message}`); errors++; }
-      await new Promise(r => setTimeout(r, 1000));
+async function markTombstones(sbUrl, sbKey, table, { country, source, model_slug, seenUrls }) {
+  if (!seenUrls.length || seenUrls.length > 100) return 0;
+  const inList = seenUrls.map(u => `"${u.replace(/"/g, '\\"')}"`).join(',');
+  const r = await fetch(
+    `${sbUrl}/rest/v1/${table}?country=eq.${country}&source=eq.${source}&model_slug=eq.${model_slug}&sold_at=is.null&listing_url=not.in.(${encodeURIComponent(inList)})`,
+    {
+      method: 'PATCH',
+      headers: {
+        apikey: sbKey, Authorization: `Bearer ${sbKey}`,
+        'Content-Type': 'application/json', Prefer: 'count=exact',
+      },
+      body: JSON.stringify({ sold_at: new Date().toISOString() }),
     }
-  }
-
-  console.log(`\n=== RÉSULTAT === Sauvegardées: ${totalSaved} | Erreurs: ${errors}`);
-  if (totalSaved === 0) { console.error('[ECHEC]'); process.exit(1); }
-  console.log('[SUCCESS]');
+  );
+  if (!r.ok) return 0;
+  const range = r.headers.get('content-range') || '0';
+  return parseInt(range.split('/')[1]) || 0;
 }
-
-main().catch(e => { console.error('Fatal:', e); process.exit(1); });
