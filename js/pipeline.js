@@ -484,7 +484,14 @@ export async function confirmAdd() {
 export function addFromListing(event, listingJson) {
   event.stopPropagation();
   let listing;
-  try { listing = JSON.parse(listingJson); } catch(e) { return; }
+  try {
+    // listingJson peut être un string simple ou un string double-encodé
+    const parsed = JSON.parse(listingJson);
+    listing = typeof parsed === 'string' ? JSON.parse(parsed) : parsed;
+  } catch(e) {
+    console.error('addFromListing parse error:', e);
+    return;
+  }
   showAddModal();
   setTimeout(() => {
     _prefillForm(listing, listing.listing_url, listing.country);
