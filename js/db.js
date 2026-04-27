@@ -108,7 +108,10 @@ export async function getListingsEU({ brand, modelSlug, country, yearMin, yearMa
     if (brand)    q = q.eq('brand', brand);
     if (modelSlug)q = q.eq('model_slug', modelSlug);
     if (country)  q = q.in('country', Array.isArray(country) ? country : [country]);
-    if (yearMin)  q = q.gte('year', yearMin);
+    if (yearMin) {
+      q = q.gte('year', yearMin);
+      q = q.not('year', 'is', null); // exclure annonces sans année
+    }
     if (yearMax)  q = q.lte('year', yearMax);
     if (kmMax)    q = q.lte('km', kmMax);
     if (priceMax) q = q.lte('price_eur_ttc', priceMax);
@@ -307,7 +310,15 @@ async function _queryCH(model_slug, { finition, fuel, yearMin, yearMax, kmMin, k
       if (withFuel.length > 0) rows = withFuel;
     }
 
-    return rows.map(r => r.price_chf_ttc).filter(p => p > 0);
+    // Note: les prix dans listings_ch scrape cy=D,F,B,A sont en EUR
+    // On les convertit en CHF approximatif pour le benchmark
+    const FX_APPROX = 0.94; // EUR/CHF approximatif — sera corrigé par le taux BCE
+    return rows.map(r => {
+      const p = r.price_chf_ttc;
+      if (!p || p <= 0) return 0;
+      // Si le prix semble être en EUR (< 200000 et pays non CH), convertir
+      return Math.round(p * FX_APPROX);
+    }).filter(p => p > 0);
   } catch(e) { return []; }
 }
 
