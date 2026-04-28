@@ -1,5 +1,10 @@
-// api/fetch-listing.js — Fetch __NEXT_DATA__ depuis URL AS24/Mobile.de
-// Gratuit, sans Apify. Fallback formulaire manuel si bloqué.
+// api/fetch-listing.js — Fetch et parse une URL d'annonce AS24
+// Structure AS24 confirmée : 
+// - tracking.firstRegistration = "MM-YYYY"
+// - tracking.fuelType = "b"/"d"/"e"/"m"
+// - vehicle.variant = "Cayenne Turbo"
+// - location.countryCode = "DE"
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -9,80 +14,128 @@ export default async function handler(req, res) {
   if (!url) return res.status(400).json({ error: 'url requise' });
 
   try {
-    // User-Agent réel pour éviter les blocages basiques
     const r = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'fr-CH,fr;q=0.9,en;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'de-DE,de;q=0.9,fr;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
       },
     });
     if (!r.ok) {
-      return res.status(200).json({ success: false, error: `HTTP ${r.status} — Page bloquée ou inaccessible. Remplissez manuellement.` });
+      return res.status(200).json({ 
+        success: false, 
+        error: `HTTP ${r.status} — Page bloquée. Remplissez manuellement.` 
+      });
     }
     const html = await r.text();
 
-    // Extraire __NEXT_DATA__ (AutoScout24 utilise Next.js)
     const m = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
     if (!m) {
-      return res.status(200).json({ success: false, error: 'Données structurées non trouvées sur cette page. Remplissez manuellement.' });
+      return res.status(200).json({ 
+        success: false, 
+        error: 'Page non reconnue. Remplissez manuellement.' 
+      });
     }
 
-    let nextData;
-    try { nextData = JSON.parse(m[1]); }
-    catch(e) { return res.status(200).json({ success: false, error: 'JSON __NEXT_DATA__ invalide.' }); }
+    let data;
+    try { data = JSON.parse(m[1]); }
+    catch(e) { return res.status(200).json({ success: false, error: 'JSON invalide' }); }
 
-    // Naviguer dans le JSON pour extraire les champs (structure AS24)
-    const listing = extractFromNextData(nextData);
+    // Nouvelle structure AS24 : pageProps.listingDetails OU pageProps.detail
+    const listing = extractFromAS24(data, url);
 
-    if (!listing.price_eur_ttc) {
-      return res.status(200).json({ success: false, error: 'Prix non extrait. Remplissez manuellement.' });
+    if (!listing.price_eur_ttc && !listing.price_chf_ttc) {
+      return res.status(200).json({ 
+        success: false, 
+        error: 'Prix non trouvé sur la page. Remplissez manuellement.' 
+      });
     }
 
     return res.status(200).json({ success: true, listing });
   } catch(e) {
-    return res.status(200).json({ success: false, error: 'Erreur fetch : ' + e.message + '. Remplissez manuellement.' });
+    return res.status(200).json({ 
+      success: false, 
+      error: 'Erreur : ' + e.message 
+    });
   }
 }
 
-function extractFromNextData(data) {
-  // Recherche profonde du listing dans le JSON Next.js
-  // Structure varie selon la version AS24 — on tente plusieurs chemins
-  const tryPaths = [
-    () => data?.props?.pageProps?.listing,
-    () => data?.props?.pageProps?.listingDetails,
-    () => data?.props?.pageProps?.detailItem,
-    () => data?.props?.pageProps?.data?.listing,
-  ];
-  let l = null;
-  for (const fn of tryPaths) { try { l = fn(); if (l) break; } catch(e) {} }
-  if (!l) return { price_eur_ttc: null };
+function extractFromAS24(data, url) {
+  const pp = data?.props?.pageProps || {};
+  
+  // Différents chemins possibles selon le type de page (détail ou liste)
+  const detail = pp.listingDetails || pp.detail || pp.listing || pp.detailItem || {};
+  
+  const v = detail.vehicle || {};
+  const t = detail.tracking || {};
+  const price = detail.prices?.public || detail.price || {};
+  const seller = detail.seller || detail.dealer || {};
+  const location = detail.location || {};
 
-  // Extraire les champs en étant tolérant à plusieurs structures
-  const priceTTC = l.prices?.public?.priceRaw || l.price?.priceRaw || l.publicPrice || l.price || 0;
-  const km       = l.tracking?.mileage || l.mileage || l.vehicle?.mileage || 0;
-  const yearReg  = l.tracking?.first_registration || l.firstRegistrationDate || l.firstRegistration || '';
-  const year     = parseInt(yearReg?.toString().match(/\b(19|20)\d{2}\b/)?.[0]) || null;
-  const make     = l.vehicle?.make || l.make || '';
-  const model    = l.vehicle?.model || l.model || '';
-  const version  = l.vehicle?.modelVersionInput || l.vehicle?.version || l.version || '';
-  const fuel     = (l.vehicle?.fuelCategory?.formatted || l.fuelType || l.tracking?.fuel_type || '').toLowerCase();
-  const country  = (l.location?.countryCode || l.country || 'DE').toUpperCase();
-  const seller   = l.dealer?.companyName || l.sellerName || l.seller?.name || '—';
-  const sellerType = (l.sellerType || l.seller?.type || '').toLowerCase();
-  const isPro    = sellerType.includes('dealer') || sellerType.includes('pro');
+  // Prix
+  const priceRaw = price.priceRaw || price.amount || price.priceFormatted || detail.publicPrice;
+  const priceNum = typeof priceRaw === 'string'
+    ? parseInt(priceRaw.replace(/[^0-9]/g, '')) || 0
+    : parseInt(priceRaw) || 0;
+
+  // Détecter devise
+  const priceFormatted = price.priceFormatted || '';
+  const isCHF = priceFormatted.includes('CHF') || priceFormatted.includes('Fr.');
+
+  // Km
+  const km = parseInt(
+    t.mileage || 
+    v.mileageInKm?.toString().replace(/[^0-9]/g, '') || 
+    v.mileage?.value || 
+    detail.mileage || 0
+  ) || null;
+
+  // Année
+  const firstReg = t.firstRegistration || v.firstRegistration || detail.firstRegistration || '';
+  const yearMatch = firstReg.toString().match(/\b(20(?:1[0-9]|2[0-6]))\b/);
+  const year = yearMatch ? parseInt(yearMatch[1]) : null;
+
+  // Carburant
+  const FUEL_MAP = { b:'essence', d:'diesel', e:'electrique', m:'hybride', p:'hybride' };
+  let fuel = FUEL_MAP[t.fuelType];
+  if (!fuel) {
+    const fuelLabel = (v.fuel || v.fuelCategory?.label || detail.fuelType || '').toLowerCase();
+    if (fuelLabel.includes('diesel')) fuel = 'diesel';
+    else if (fuelLabel.includes('electric') || fuelLabel.includes('elektr')) fuel = 'electrique';
+    else if (fuelLabel.includes('hybrid')) fuel = 'hybride';
+    else if (fuelLabel.includes('gas') || fuelLabel.includes('petrol') || fuelLabel.includes('benzin')) fuel = 'essence';
+    else fuel = null;
+  }
+
+  // Marque / modèle
+  const make = (v.make || detail.make || '').trim();
+  const model = (v.model || detail.model || '').trim();
+  const variant = (v.variant || v.modelVersionInput || detail.version || '').trim();
+
+  // Vendeur
+  const sellerType = (seller.type || detail.sellerType || '').toLowerCase();
+  const isPro = sellerType === 'd' || sellerType.includes('dealer') || sellerType.includes('pro');
+  const sellerName = seller.companyName || seller.name || detail.sellerName || '—';
+  
+  // Pays
+  const country = (location.countryCode || detail.country || 'DE').toUpperCase();
 
   return {
     brand:           normalizeBrand(make),
-    model:           cleanModel(model + (version ? ' ' + version : '')),
+    model_full:      `${make} ${model} ${variant}`.trim().replace(/\s+/g, ' '),
+    model_slug:      modelToSlug(model),
+    version:         variant || null,
     year:            year,
-    km:              parseInt(km) || null,
-    price_eur_ttc:   parseInt(priceTTC) || null,
+    km:              km,
+    price_eur_ttc:   isCHF ? null : priceNum,
+    price_chf_ttc:   isCHF ? priceNum : null,
     fuel_type:       fuel,
-    seller_type:     isPro ? 'pro' : (sellerType.includes('priv') ? 'private' : 'unknown'),
-    seller_name:     seller,
+    seller_type:     isPro ? 'pro' : 'private',
+    seller_name:     sellerName,
     country:         country,
-    first_reg_date:  yearReg || null,
+    first_reg_date:  firstReg || null,
+    listing_url:     url,
   };
 }
 
@@ -94,6 +147,10 @@ function normalizeBrand(b) {
   return b;
 }
 
-function cleanModel(s) {
-  return s.trim().replace(/\s+/g, ' ');
+function modelToSlug(model) {
+  if (!model) return '';
+  return model.toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/--+/g, '-');
 }
