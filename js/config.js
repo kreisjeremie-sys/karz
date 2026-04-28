@@ -36,6 +36,8 @@ export const MODELS = {
     { label:'Range Rover Sport P400e',  slug:'range-rover-sport-p400e'   },
     { label:'Range Rover Sport SVR',    slug:'range-rover-sport-svr'     },
     { label:'Range Rover Sport SV',     slug:'range-rover-sport-sv'      },
+    { label:'Range Rover Velar',        slug:'range-rover-velar'         },
+    { label:'Range Rover Velar P400e',  slug:'range-rover-velar-p400e'   },
     { label:'Range Rover Evoque',       slug:'range-rover-evoque'        },
     { label:'Range Rover Evoque P300e', slug:'range-rover-evoque-p300e'  },
   ],
@@ -76,6 +78,9 @@ export const SPECS = {
   'Land Rover Range Rover SV':     { co2:290, kg:2545, msrp:248000, msrpSrc:'landrover.ch 2024',                resale_p25:null, resale_src:null },
   'Land Rover Range Rover Autobiography':{ co2:295,kg:2540,msrp:198500,msrpSrc:'landrover.ch 2024',             resale_p25:null, resale_src:null },
   'Land Rover Range Rover P510e':  { co2: 30, kg:2750, msrp:168900, msrpSrc:'landrover.ch 2024 SE',             resale_p25:null, resale_src:null },
+  // LR RANGE ROVER VELAR (ajouté pour matching correct des annonces)
+  'Land Rover Range Rover Velar':  { co2:200, kg:1880, msrp: 79900, msrpSrc:'landrover.ch 2024 S P250',          resale_p25:null, resale_src:null },
+  'Land Rover Range Rover Velar P400e':{ co2:48, kg:2090, msrp:104900, msrpSrc:'landrover.ch 2024 SE PHEV',      resale_p25:null, resale_src:null },
   // LR RANGE ROVER SPORT
   'Land Rover Range Rover Sport':  { co2:248, kg:2305, msrp: 95800, msrpSrc:'landrover.ch 2024 S',              resale_p25:null, resale_src:null },
   'Land Rover Range Rover Sport D350':{ co2:221,kg:2250,msrp:119100, msrpSrc:'landrover.ch 2024 X-Dyn.HSE D350',resale_p25:null, resale_src:null },
