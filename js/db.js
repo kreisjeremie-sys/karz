@@ -343,20 +343,67 @@ export function computePriceStats(prices) {
 }
 
 // ── URL AutoScout24.ch pour les comparables ──────────────────
-export function buildAS24chUrl(model_slug, { yearMin, yearMax, kmMin, kmMax, fuel }) {
-  // Mapping slug → paramètres AS24.ch
+// Génère une URL de recherche AS24.ch ciblée sur un véhicule similaire
+export function buildAS24chUrl(model_slug, { yearMin, yearMax, kmMin, kmMax, fuel } = {}) {
+  // Mapping slug → marque + slug AS24.ch
   const makeMap = {
     'macan':'porsche','cayenne':'porsche',
-    'defender':'land-rover','defender-90':'land-rover','defender-110':'land-rover','defender-130':'land-rover',
-    'range-rover':'land-rover','range-rover-sport':'land-rover','range-rover-evoque':'land-rover',
+    'defender-90':'land-rover','defender-110':'land-rover','defender-130':'land-rover',
+    'range-rover':'land-rover','range-rover-sport':'land-rover',
+    'range-rover-evoque':'land-rover','range-rover-velar':'land-rover',
   };
-  const make  = makeMap[model_slug] || 'land-rover';
-  const model = model_slug;
+  const make = makeMap[model_slug] || 'land-rover';
 
+  // Fuel mapping AS24.ch : D=diesel, B=essence, E=electrique, M=hybride
   const fuelMap = { diesel:'D', essence:'B', electrique:'E', hybride:'M' };
   const fuelParam = fuel && fuelMap[fuel] ? `&fuel=${fuelMap[fuel]}` : '';
 
-  return `https://www.autoscout24.ch/lst/${make}/${model}?atype=C&cy=CH&ustate=U,N&fregfrom=${yearMin}&fregto=${yearMax}&kmfrom=${kmMin}&kmto=${kmMax}${fuelParam}&sort=price&desc=0`;
+  // Année par défaut : 2018-2026 si non spécifié
+  const yMin = yearMin || 2018;
+  const yMax = yearMax || 2026;
+  // Km par défaut : 0-200000 si non spécifié
+  const kMin = kmMin !== undefined ? kmMin : 0;
+  const kMax = kmMax || 200000;
+
+  return `https://www.autoscout24.ch/lst/${make}/${model_slug}?atype=C&cy=CH&ustate=U,N&fregfrom=${yMin}&fregto=${yMax}&kmfrom=${kMin}&kmto=${kMax}${fuelParam}&sort=price&desc=0`;
+}
+
+// URL plus simple : recherche directe d'un véhicule sur AS24.ch
+// Utilisé par le bouton "Voir sur AS24.ch" dans les cartes
+export function buildAS24chSearchUrl(listing) {
+  if (!listing) return 'https://www.autoscout24.ch';
+  
+  const makeMap = {
+    'macan':'porsche','cayenne':'porsche',
+    'defender-90':'land-rover','defender-110':'land-rover','defender-130':'land-rover',
+    'range-rover':'land-rover','range-rover-sport':'land-rover',
+    'range-rover-evoque':'land-rover','range-rover-velar':'land-rover',
+  };
+  const make = makeMap[listing.model_slug] || 'land-rover';
+  const slug = listing.model_slug || '';
+  
+  const fuelMap = { diesel:'D', essence:'B', electrique:'E', hybride:'M' };
+  const fuelNorm = (() => {
+    const f = (listing.fuel_type || '').toLowerCase();
+    if (f.includes('diesel')) return 'diesel';
+    if (f.includes('electric') || f.includes('elektr')) return 'electrique';
+    if (f.includes('hybrid')) return 'hybride';
+    if (f.includes('essence') || f.includes('petrol') || f.includes('benzin') || f.includes('gas')) return 'essence';
+    return null;
+  })();
+  const fuelParam = fuelNorm && fuelMap[fuelNorm] ? `&fuel=${fuelMap[fuelNorm]}` : '';
+  
+  // Année ±2 ans autour de l'année du véhicule
+  const year = listing.year;
+  const yMin = year ? year - 2 : 2018;
+  const yMax = year ? year + 2 : 2026;
+  
+  // Km ±30% autour du km actuel
+  const km = listing.km || 0;
+  const kMin = km ? Math.max(0, Math.round(km * 0.7)) : 0;
+  const kMax = km ? Math.round(km * 1.3) : 200000;
+  
+  return `https://www.autoscout24.ch/lst/${make}/${slug}?atype=C&cy=CH&ustate=U,N&fregfrom=${yMin}&fregto=${yMax}&kmfrom=${kMin}&kmto=${kMax}${fuelParam}&sort=price&desc=0`;
 }
 
 // ── STATUT CONNEXION ─────────────────────────────────────────
