@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { getState, setState } from './state.js';
-import { getListingsEU, getListingsEUMeta, getComparablesCH, buildAS24chUrl } from './db.js';
+import { getListingsEU, getListingsEUMeta, getComparablesCH, buildAS24chUrl, buildAS24chSearchUrl } from './db.js';
 import { computeLanded, computeResalePrice, computeCO2, computeMarge } from './calc.js';
 import { FLAGS, COUNTRY_NAMES, MODELS, LEGAL, SPECS, DEPRECIATION, DEFAULTS } from './config.js';
 
@@ -567,6 +567,9 @@ function _renderCard(r, idx, fxSafe) {
       ${resaleHTML}
       ${margeHTML}
       <div class="rc-actions">
+        <a class="btn-as24-ch" href="${buildAS24chSearchUrl(listing)}" target="_blank" onclick="event.stopPropagation()">
+          🇨🇭 Voir le marché CH (AS24.ch)
+        </a>
         <button class="btn-add-pipeline" data-listing="${_escJson(listing)}">+ Ajouter au pipeline</button>
       </div>
     </div>`;
