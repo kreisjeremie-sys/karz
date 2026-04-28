@@ -114,7 +114,9 @@ b{font-weight:600}
 .resale-price{font-weight:600}
 .hyp-badge{background:var(--orange-bg);color:var(--orange2);font-size:9px;padding:1px 6px;border-radius:3px}
 .rc-warn{margin-top:5px;font-size:10px;padding:5px 8px;background:var(--orange-bg);color:var(--orange2);border-radius:4px}
-.btn-add-pipeline{margin-top:8px;font-size:10px;padding:5px 11px;border:0.5px solid var(--green);color:var(--green2);background:none;border-radius:4px;font-weight:500}
+.btn-add-pipeline{margin-top:8px;font-size:10px;padding:5px 11px;border:0.5px solid var(--green);color:var(--green2);background:none;border-radius:4px;font-weight:500;cursor:pointer}
+.btn-as24-ch{margin-top:8px;font-size:10px;padding:5px 11px;border:0.5px solid #DC2626;color:#991B1B;background:none;border-radius:4px;font-weight:500;text-decoration:none;display:inline-block;margin-right:8px;cursor:pointer}
+.btn-as24-ch:hover{background:#FEE2E2}
 .btn-add-pipeline:hover{background:var(--green-bg)}
 
 /* RESALE DETAIL */
@@ -322,6 +324,27 @@ b{font-weight:600}
 .sc-title{font-size:12px;font-weight:600;margin-bottom:6px}
 .sc-info{font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:8px}
 .admin-note{font-size:11px;color:var(--text2);padding:8px 11px;background:var(--bg2);border-radius:5px}
+
+/* NEW OPPORTUNITY */
+.newopp-section{background:var(--card);border:0.5px solid var(--border);border-radius:8px;padding:18px;margin-bottom:14px}
+.newopp-section h3{font-size:13px;font-weight:600;color:var(--text);margin:0 0 10px;text-transform:uppercase;letter-spacing:0.5px}
+.newopp-help{font-size:11px;color:var(--text3);margin:0 0 12px}
+.newopp-url-row{display:flex;gap:8px;align-items:stretch}
+.newopp-url-row input{flex:1;padding:8px 11px;border:0.5px solid var(--border);border-radius:5px;font-size:11px}
+.newopp-status{margin-top:8px;font-size:11px}
+.newopp-status .ok{color:var(--green2)}
+.newopp-status .warn{color:#991B1B}
+.newopp-status .loading{color:var(--text3)}
+.newopp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.newopp-fg label{display:block;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;font-weight:500}
+.newopp-fg input,.newopp-fg select{width:100%;padding:7px 9px;border:0.5px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg)}
+.newopp-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.newopp-result-section{background:var(--card);border:0.5px solid var(--border);border-radius:8px;padding:18px;margin-top:14px}
+.newopp-result-section h3{font-size:13px;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px}
+.newopp-block{margin-bottom:12px;padding:10px 12px;background:var(--bg);border-radius:5px;border:0.5px solid var(--border)}
+.newopp-block-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
+.newopp-block.warn{background:#FFF7ED;color:#9A3412;border-color:#FED7AA}
+@media(max-width:900px){.newopp-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -342,6 +365,7 @@ b{font-weight:600}
 <!-- NAV -->
 <div class="nav">
   <button class="nav-btn active" data-page="search"   onclick="window.KARZ.showPage('search')">RECHERCHE</button>
+  <button class="nav-btn"        data-page="newopp"   onclick="window.KARZ.showPage('newopp')">+ NOUVEAU</button>
   <button class="nav-btn"        data-page="pipeline" onclick="window.KARZ.showPage('pipeline')">PIPELINE <span class="nav-pill" id="pill-pipeline">0</span></button>
   <button class="nav-btn"        data-page="mydeals"  onclick="window.KARZ.showPage('mydeals')">MY DEALS <span class="nav-pill" id="pill-mydeals">0</span></button>
   <button class="nav-btn"        data-page="lost"     onclick="window.KARZ.showPage('lost')">DEALS LOST <span class="nav-pill" id="pill-lost">0</span></button>
@@ -365,6 +389,10 @@ b{font-weight:600}
 </div>
 
 <!-- PIPELINE -->
+<div id="page-newopp" class="page">
+  <div id="newopp-content"></div>
+</div>
+
 <div id="page-pipeline" class="page">
   <div class="pipeline-toolbar">
     <div class="section-header" style="border:none;margin:0">Pipeline — Shortlist active</div>
@@ -416,6 +444,7 @@ import * as state    from './js/state.js';
 import * as calc     from './js/calc.js';
 import * as db       from './js/db.js';
 import * as search   from './js/search.js';
+  import * as newopp   from './js/new-opportunity.js';
 import * as pipeline from './js/pipeline.js';
 import * as mydeals  from './js/my-deals.js';
 import * as lost     from './js/lost.js';
@@ -427,7 +456,7 @@ import * as admin    from './js/admin.js';
 window.KARZ_CONFIG = config;
 window.KARZ = {
   config, state, calc, db,
-  search, pipeline, mydeals, lost,
+  search, newopp, pipeline, mydeals, lost,
   marketCH, heatmap, admin,
   showPage, toggleTvaMode,
 };
@@ -495,6 +524,7 @@ async function showPage(name) {
   document.getElementById('page-' + name)?.classList.add('active');
   document.querySelector(`.nav-btn[data-page="${name}"]`)?.classList.add('active');
 
+  if (name === 'newopp')   await newopp.initNewOpportunity();
   if (name === 'search')   await search.initSearch();
   if (name === 'pipeline') await pipeline.initPipeline();
   if (name === 'mydeals')  await mydeals.initMyDeals();
