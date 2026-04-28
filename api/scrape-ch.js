@@ -1,177 +1,183 @@
-// api/scrape-ch.js — Trigger scrape CH via Apify
-// Logique inline pour Vercel serverless
+// api/scrape-ch.js — Endpoint Vercel pour scraper autoscout24.ch
+// Vercel utilise des IPs européennes (Frankfurt/Paris) acceptées par AS24.ch
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST' && req.method !== 'GET')
+  // Allow only POST or GET
+  if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
-
-  const TOKEN = process.env.APIFY_TOKEN;
-  if (!TOKEN) return res.status(500).json({ error: 'APIFY_TOKEN manquant' });
+  }
 
   const SB_URL = 'https://kkytyznvqwptdnsgodlo.supabase.co';
-  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtreXR5em52cXdwdGRuc2dvZGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NzUyNzksImV4cCI6MjA5MjQ1MTI3OX0.XLYgXXUkxAkHXaWCc4diAclSpLxLpsZV_NYohr9cSlg';
-
-  try {
-    const result = await runScrapeCH(TOKEN, SB_URL, SB_KEY);
-    return res.status(200).json({ success: true, ...result });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
+  const SB_KEY = process.env.SUPABASE_KEY;
+  if (!SB_KEY) {
+    return res.status(500).json({ error: 'SUPABASE_KEY missing in Vercel env' });
   }
-}
 
-const CH_SLUGS = [
-  { slug:'macan',              brand:'porsche',    label:'Porsche Macan',      maxItems:50 },
-  { slug:'cayenne',            brand:'porsche',    label:'Porsche Cayenne',    maxItems:50 },
-  { slug:'defender',           brand:'land-rover', label:'LR Defender',        maxItems:60 },
-  { slug:'range-rover',        brand:'land-rover', label:'Range Rover',        maxItems:50 },
-  { slug:'range-rover-sport',  brand:'land-rover', label:'Range Rover Sport',  maxItems:50 },
-  { slug:'range-rover-evoque', brand:'land-rover', label:'Range Rover Evoque', maxItems:40 },
-];
-
-async function runScrapeCH(apifyToken, sbUrl, sbKey) {
-  const batchId = new Date().toISOString().slice(0, 10) + '-CH';
-  const summary = { totalSaved: 0, totalRetired: 0, errors: [], runsCompleted: 0, benchmarks: [] };
-
-  for (const m of CH_SLUGS) {
-    try {
-      const url = `https://www.autoscout24.com/lst/${m.brand}/${m.slug}?atype=C&cy=CH&ustate=U&sort=price&desc=0&fregfrom=2018`;
-      const items = await scrapeApify(apifyToken, url, m.maxItems);
-      if (!items?.length) continue;
-
-      const rows = items.map(it => normalizeListingCH(it, m, batchId)).filter(Boolean);
-      const saved = await upsertListings(sbUrl, sbKey, 'listings_ch', rows);
-      summary.totalSaved += saved;
-
-      const seenUrls = rows.map(r => r.listing_url).filter(Boolean);
-      const retired = await markTombstones(sbUrl, sbKey, 'listings_ch', { model_slug: m.slug, seenUrls });
-      summary.totalRetired += retired;
-
-      const prices = rows.map(r => r.price_chf_ttc).filter(p => p && p > 0).sort((a,b)=>a-b);
-      if (prices.length >= 5) {
-        const p25 = percentile(prices, 25);
-        const p50 = percentile(prices, 50);
-        const p75 = percentile(prices, 75);
-        const p10 = percentile(prices, 10);
-        await saveBenchmark(sbUrl, sbKey, {
-          brand: m.brand === 'porsche' ? 'Porsche' : 'Land Rover',
-          model: m.label.replace(/^(Porsche |LR )/, ''),
-          n_listings: prices.length,
-          price_p10: p10, price_p25: p25, price_p50: p50, price_p75: p75,
-          price_min: prices[0], price_max: prices[prices.length - 1],
-          price_conservative: Math.round(p25),
-          is_reliable: prices.length >= 10,
-          scraped_at: new Date().toISOString(),
-          search_url: url,
-        });
-        summary.benchmarks.push({ model: m.label, n: prices.length, p25 });
-      }
-
-      summary.runsCompleted++;
-      await new Promise(r => setTimeout(r, 1000));
-    } catch (e) {
-      summary.errors.push(`${m.slug}: ${e.message}`);
-    }
-  }
-  return { batchId, ...summary };
-}
-
-async function scrapeApify(token, url, maxItems) {
-  const actors = ['automation-lab~autoscout24-scraper', 'misceres~autoscout24-scraper'];
-  const input = { startUrls: [{ url }], maxItems };
-  for (const actor of actors) {
-    try {
-      const r = await fetch(
-        `https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${token}&timeout=120&memory=512`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }
-      );
-      if (!r.ok) continue;
-      const data = await r.json();
-      if (data?.length) return data;
-    } catch (e) { continue; }
-  }
-  return [];
-}
-
-function normalizeListingCH(item, m, batchId) {
-  const priceCHF = pickNum(item.price, item.priceEur, item.tracking?.price);
-  if (!priceCHF || priceCHF < 5000) return null;
-  const km = pickNum(item.tracking?.mileage, item.mileage, item.km);
-  const yearStr = pickStr(item.firstRegistrationDate, item.tracking?.first_registration);
-  const year = parseInt(yearStr?.match(/\b(19|20)\d{2}\b/)?.[0]) || null;
-  const url = pickStr(item.url, item.listingUrl, item.link);
-  if (!url) return null;
-  return {
-    listing_url:    url,
-    brand:          m.brand === 'porsche' ? 'Porsche' : 'Land Rover',
-    model_slug:     m.slug,
-    model_full:     pickStr(item.title, item.name, m.label),
-    version:        pickStr(item.version, item.variant),
-    year:           year,
-    km:             km,
-    price_chf_ttc:  Math.round(priceCHF),
-    fuel_type:      pickStr(item.fuelType)?.toLowerCase() || null,
-    seller_type:    pickStr(item.sellerType)?.toLowerCase() || 'unknown',
-    days_online:    pickNum(item.daysOnMarket) || null,
-    first_reg_date: yearStr || null,
-    batch_id:       batchId,
-    last_seen_at:   new Date().toISOString(),
+  const HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'de-CH,de;q=0.9,fr-CH;q=0.8,fr;q=0.7,en;q=0.6',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
   };
-}
 
-function pickNum(...vals) {
-  for (const v of vals) {
-    const n = parseFloat(v);
-    if (!isNaN(n) && n > 0) return n;
+  const MODELS = [
+    { brand:'Porsche',    makeSlug:'porsche',    modelSlug:'macan'              },
+    { brand:'Porsche',    makeSlug:'porsche',    modelSlug:'cayenne'            },
+    { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'defender-90'        },
+    { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'defender-110'       },
+    { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'defender-130'       },
+    { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'range-rover'        },
+    { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'range-rover-sport'  },
+    { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'range-rover-velar'  },
+    { brand:'Land Rover', makeSlug:'land-rover', modelSlug:'range-rover-evoque' },
+  ];
+
+  const FUEL_MAP = { b:'essence', d:'diesel', e:'electrique', m:'hybride', p:'hybride' };
+  function normalizeFuel(code, label) {
+    if (code && FUEL_MAP[code]) return FUEL_MAP[code];
+    if (!label) return null;
+    const f = label.toLowerCase();
+    if (f.includes('diesel')) return 'diesel';
+    if (f.includes('electric') || f.includes('elektr')) return 'electrique';
+    if (f.includes('hybrid') || f.includes('plug')) return 'hybride';
+    if (f.includes('gas') || f.includes('petrol') || f.includes('benzin')) return 'essence';
+    return f;
   }
-  return 0;
-}
-function pickStr(...vals) {
-  for (const v of vals) { if (v && String(v).trim()) return String(v).trim(); }
-  return '';
-}
-function percentile(sorted, p) {
-  const k = (p / 100) * (sorted.length - 1);
-  const f = Math.floor(k); const c = Math.ceil(k);
-  return Math.round(f === c ? sorted[f] : sorted[f] + (k - f) * (sorted[c] - sorted[f]));
-}
 
-async function upsertListings(sbUrl, sbKey, table, rows) {
-  if (!rows.length) return 0;
-  const r = await fetch(`${sbUrl}/rest/v1/${table}?on_conflict=listing_url`, {
-    method: 'POST',
-    headers: {
-      apikey: sbKey, Authorization: `Bearer ${sbKey}`,
-      'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
-    },
-    body: JSON.stringify(rows),
-  });
-  if (!r.ok) throw new Error(`Supabase: ${r.status}`);
-  return rows.length;
-}
-
-async function markTombstones(sbUrl, sbKey, table, { model_slug, seenUrls }) {
-  if (!seenUrls.length || seenUrls.length > 100) return 0;
-  const inList = seenUrls.map(u => `"${u.replace(/"/g, '\\"')}"`).join(',');
-  const r = await fetch(
-    `${sbUrl}/rest/v1/${table}?model_slug=eq.${model_slug}&sold_at=is.null&listing_url=not.in.(${encodeURIComponent(inList)})`,
-    {
-      method: 'PATCH',
-      headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sold_at: new Date().toISOString() }),
+  async function scrapePage(makeSlug, modelSlug, page = 1) {
+    const url = `https://www.autoscout24.ch/de/lst/${makeSlug}/${modelSlug}?atype=C&ustate=N,U&sort=age&desc=1&page=${page}&fregfrom=2018`;
+    const r = await fetch(url, { headers: HEADERS });
+    if (!r.ok) return { error: r.status, items: [] };
+    const html = await r.text();
+    
+    // Essai 1: __NEXT_DATA__
+    let m = html.match(/<script id="__NEXT_DATA__"[^>]*>(.*?)<\/script>/s);
+    if (m) {
+      try {
+        const data = JSON.parse(m[1]);
+        const items = data?.props?.pageProps?.listings 
+          || data?.props?.pageProps?.searchResults?.listings 
+          || [];
+        return { items, source: 'next' };
+      } catch(e) {}
     }
-  );
-  return r.ok ? 1 : 0;
-}
+    
+    // Essai 2: window state
+    m = html.match(/window\.__INITIAL_STATE__\s*=\s*(\{.*?\});/s);
+    if (m) {
+      try {
+        const data = JSON.parse(m[1]);
+        const items = data?.search?.results?.items 
+          || data?.results?.items 
+          || [];
+        return { items, source: 'initial' };
+      } catch(e) {}
+    }
+    
+    return { items: [], source: 'none', htmlSample: html.slice(0, 500) };
+  }
 
-async function saveBenchmark(sbUrl, sbKey, record) {
-  await fetch(`${sbUrl}/rest/v1/benchmark_ch?on_conflict=brand,model`, {
-    method: 'POST',
-    headers: {
-      apikey: sbKey, Authorization: `Bearer ${sbKey}`,
-      'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
-    },
-    body: JSON.stringify(record),
+  function normalizeItem(item, model, batchId) {
+    try {
+      const v = item.vehicle || {};
+      const t = item.tracking || {};
+      const priceRaw = item.price?.priceFormatted?.replace(/[^0-9]/g, '') 
+                      || item.price?.value || item.price;
+      const price = typeof priceRaw === 'string' 
+        ? parseInt(priceRaw.replace(/[^0-9]/g, '')) || 0
+        : parseInt(priceRaw) || 0;
+      if (!price || price < 5000) return null;
+      const url = item.url || item.detailPageUrl;
+      if (!url) return null;
+      const fullUrl = url.startsWith('http') ? url : 'https://www.autoscout24.ch' + url;
+      const km = parseInt(t.mileage || v.mileageInKm?.replace(/[^0-9]/g, '') || v.mileage?.value || 0) || null;
+      const firstReg = t.firstRegistration || v.firstRegistration || '';
+      const yearMatch = firstReg.match(/\b(20(?:1[0-9]|2[0-6]))\b/);
+      const year = yearMatch ? parseInt(yearMatch[1]) : null;
+      const fuel = normalizeFuel(t.fuelType, v.fuel);
+      const seller = item.seller || {};
+      const isPro = (seller.type || '').toLowerCase().includes('d');
+      const title = v.variant || `${v.make || ''} ${v.model || ''}`.trim() || model.brand;
+      return {
+        listing_url: fullUrl, brand: model.brand, model_slug: model.modelSlug,
+        model_full: title, version: v.variant || null, year, km,
+        price_chf_ttc: Math.round(price), fuel_type: fuel,
+        seller_type: isPro ? 'pro' : 'private',
+        seller_name: seller.companyName || seller.name || '—',
+        country: 'CH', source: 'as24ch',
+        first_reg_date: firstReg || null, batch_id: batchId,
+        last_seen_at: new Date().toISOString(),
+      };
+    } catch(e) { return null; }
+  }
+
+  async function upsertBatch(rows) {
+    let saved = 0;
+    const chunk = 20;
+    for (let i = 0; i < rows.length; i += chunk) {
+      const batch = rows.slice(i, i + chunk);
+      const seen = new Set();
+      const unique = batch.filter(r => {
+        if (seen.has(r.listing_url)) return false;
+        seen.add(r.listing_url); return true;
+      });
+      const r = await fetch(`${SB_URL}/rest/v1/listings_ch?on_conflict=listing_url`, {
+        method: 'POST',
+        headers: {
+          apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates,return=minimal',
+        },
+        body: JSON.stringify(unique),
+      });
+      if (r.ok) saved += unique.length;
+    }
+    return saved;
+  }
+
+  const batchId = new Date().toISOString().slice(0, 10) + '-CH';
+  const log = [];
+  let totalSaved = 0, errors = 0, firstError = null;
+
+  for (const model of MODELS) {
+    log.push(`[CH] ${model.brand} ${model.modelSlug}`);
+    const allRaw = [];
+    for (const page of [1, 2]) {
+      const res = await scrapePage(model.makeSlug, model.modelSlug, page);
+      if (res.error) {
+        log.push(`  [${res.error}] page ${page}`);
+        if (!firstError) firstError = res;
+        break;
+      }
+      if (!res.items.length) {
+        log.push(`  [NO_DATA] page ${page} (source: ${res.source})`);
+        if (!firstError && res.htmlSample) firstError = { htmlSample: res.htmlSample };
+        break;
+      }
+      log.push(`  [OK ${res.source}] page ${page}: ${res.items.length}`);
+      allRaw.push(...res.items);
+      if (res.items.length < 15) break;
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    if (!allRaw.length) { errors++; continue; }
+    const rows = allRaw.map(it => normalizeItem(it, model, batchId)).filter(Boolean);
+    log.push(`  [NORMALIZED] ${rows.length}/${allRaw.length}`);
+    if (!rows.length) { errors++; continue; }
+    try {
+      const saved = await upsertBatch(rows);
+      totalSaved += saved;
+      log.push(`  [SAVED] ${saved}`);
+    } catch(e) { log.push(`  [SAVE_ERR] ${e.message}`); errors++; }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  return res.status(200).json({
+    success: totalSaved > 0,
+    totalSaved,
+    errors,
+    log,
+    firstError,
+    batchId,
   });
 }
