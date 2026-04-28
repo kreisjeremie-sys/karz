@@ -204,6 +204,36 @@ function _findSpec(listing) {
   if (!brand) return null;
 
   const specKeys = Object.keys(SPECS).filter(k => k.startsWith(brand + ' '));
+  
+  // Check explicite sur model_full pour des sous-modèles spécifiques
+  // Ex: model_full="Range Rover Velar P250" → Land Rover Range Rover Velar
+  const modelFull = (listing.model_full || '').toLowerCase();
+  const subModels = ['Velar', 'Evoque', 'Sport', 'Autobiography', 'SV'];
+  for (const sub of subModels) {
+    if (modelFull.includes(sub.toLowerCase())) {
+      // Chercher le SPEC le plus court contenant ce sous-modèle
+      const subKey = specKeys
+        .filter(k => k.includes(sub))
+        .sort((a, b) => a.length - b.length)[0];
+      if (subKey) {
+        return SPECS[subKey];
+      }
+    }
+  }
+  
+  // Sanity check: rejeter un spec si le prix annonce est trop éloigné du MSRP
+  // Un Range Rover neuf CHF 148k ne peut pas être à €30k même 5 ans plus tard
+  // Règle: prix EUR doit être >= 20% du MSRP CHF (équivalent ~22% en EUR)
+  function _isPlausible(spec) {
+    if (!spec || !spec.msrp) return true;
+    const priceEur = listing.price_eur_ttc || 0;
+    if (!priceEur) return true;
+    // Conversion approximative MSRP CHF → EUR (FX 0.94)
+    const msrpEur = spec.msrp * 1.06; // 1/0.94
+    // Rejeter si prix < 20% MSRP (rachat très improbable)
+    // ou si prix > 130% MSRP (pas une occasion)
+    return priceEur >= msrpEur * 0.20 && priceEur <= msrpEur * 1.30;
+  }
 
   // 1+2. Match par variant
   if (listing.version) {
@@ -214,16 +244,15 @@ function _findSpec(listing) {
 
     // Match exact "Brand Variant"
     const keyExact = `${brand} ${variant}`;
-    if (SPECS[keyExact]) return SPECS[keyExact];
+    if (SPECS[keyExact] && _isPlausible(SPECS[keyExact])) return SPECS[keyExact];
 
     // Match partiel : variant commence par le suffixe SPECS
-    // Trier par longueur décroissante pour matcher le plus spécifique en premier
     const sortedKeys = [...specKeys].sort((a, b) => b.length - a.length);
     for (const specKey of sortedKeys) {
-      const specSuffix = specKey.slice(brand.length + 1); // ex: "Cayenne Turbo"
+      const specSuffix = specKey.slice(brand.length + 1);
       const variantLow = variant.toLowerCase();
       const specLow = specSuffix.toLowerCase();
-      if (variantLow.startsWith(specLow)) {
+      if (variantLow.startsWith(specLow) && _isPlausible(SPECS[specKey])) {
         return SPECS[specKey];
       }
     }
@@ -235,15 +264,22 @@ function _findSpec(listing) {
     const m = allModels.find(m => m.slug === listing.model_slug);
     if (m) {
       const key = `${brand} ${m.label}`;
-      if (SPECS[key]) return SPECS[key];
+      if (SPECS[key] && _isPlausible(SPECS[key])) return SPECS[key];
     }
 
-    // 4. Fallback : version de BASE (clé la plus courte qui contient le slug)
+    // 4. Fallback : version de BASE (clé la plus courte) — avec sanity check
     const slug = listing.model_slug.toLowerCase().replace(/-/g, ' ');
     const candidates = specKeys
       .filter(k => k.toLowerCase().includes(slug))
       .sort((a, b) => a.length - b.length);
-    if (candidates.length) return SPECS[candidates[0]];
+    
+    // Tester chaque candidat dans l'ordre, garder le premier plausible
+    for (const cand of candidates) {
+      if (_isPlausible(SPECS[cand])) return SPECS[cand];
+    }
+    
+    // Si aucun candidat n'est plausible, retourner le premier mais on a un problème
+    // Mieux: retourner null pour que la marge soit "non calculable"
   }
 
   return null;
