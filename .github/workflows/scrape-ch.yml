@@ -6,13 +6,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  trigger-vercel:
+  scrape:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Vercel scrape-ch endpoint
-        run: |
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -H "User-Agent: GitHub-Actions-KARZ" \
-            --max-time 600 \
-            "https://karz-rho.vercel.app/api/scrape-ch"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Run scrape
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node scrape-ch.js
