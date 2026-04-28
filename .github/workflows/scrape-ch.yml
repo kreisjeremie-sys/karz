@@ -2,26 +2,17 @@ name: Scrape CH bi-mensuel
 
 on:
   schedule:
-    - cron: '0 5 1,15 * *'
+    - cron: '0 5 1,15 * *'  # 1er et 15 du mois à 5h UTC
   workflow_dispatch:
 
 jobs:
-  scrape:
+  trigger-vercel:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run CH scraper
-        env:
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: node scrape-ch.js
+      - name: Trigger Vercel scrape-ch endpoint
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "User-Agent: GitHub-Actions-KARZ" \
+            --max-time 600 \
+            "https://karz-rho.vercel.app/api/scrape-ch"
