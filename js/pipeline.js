@@ -6,7 +6,8 @@
 import { getState, setState } from './state.js';
 import { createDeal, updateDeal, deleteDeal as dbDeleteDeal, addNote as dbAddNote, getDeals } from './db.js';
 import { computeDeal } from './calc.js';
-import { PIPELINE_STATUSES, FLAGS, SITE_PATTERNS } from './config.js';
+import { computeListing, renderLandedHTML, renderResaleHTML, renderMargeHTML, renderCashflowHTML, fmt } from './compute.js';
+import { PIPELINE_STATUSES, FLAGS, SITE_PATTERNS, MODELS } from './config.js';
 
 export async function initPipeline() {
   await _loadDeals();
@@ -19,13 +20,23 @@ async function _loadDeals() {
 }
 
 // ── RENDU KANBAN ──────────────────────────────────────────────
-export function renderPipeline() {
+export async function renderPipeline() {
   const state      = getState();
   const container  = document.getElementById('pipeline-board');
   if (!container) return;
 
   const pipelineDeals = state.deals.filter(d => d.status === 'pipeline');
 
+  container.innerHTML = '<div class="loading">Calcul des deals…</div>';
+  
+  // Pré-calculer chaque deal en async (utilise compute.js)
+  const dealsWithCalc = await Promise.all(pipelineDeals.map(async deal => {
+    // Convertir deal pipeline vers format listing pour compute.js
+    const listing = _dealToListing(deal);
+    const result = await computeListing(listing);
+    return { deal, result };
+  }));
+  
   container.innerHTML = '';
   const board = document.createElement('div');
   board.className = 'kanban-board';
@@ -33,7 +44,7 @@ export function renderPipeline() {
   PIPELINE_STATUSES.forEach(status => {
     const col   = document.createElement('div');
     col.className = 'kanban-col';
-    const colDeals = pipelineDeals.filter(d => (d.pipeline_status || 'watchlist') === status.id);
+    const colDeals = dealsWithCalc.filter(({deal}) => (deal.pipeline_status || 'watchlist') === status.id);
 
     col.innerHTML = `
       <div class="kanban-col-header" style="color:${status.color}">
@@ -42,9 +53,8 @@ export function renderPipeline() {
       </div>
     `;
 
-    colDeals.forEach(deal => {
-      const calc = computeDeal(deal, state);
-      col.appendChild(_renderPipelineCard(deal, calc, status));
+    colDeals.forEach(({deal, result}) => {
+      col.appendChild(_renderPipelineCard(deal, result, status));
     });
 
     board.appendChild(col);
@@ -57,15 +67,42 @@ export function renderPipeline() {
   if (addBtn) addBtn.style.display = 'block';
 }
 
+// Convertir deal pipeline (format DB) vers format listing (compute.js)
+function _dealToListing(deal) {
+  // deal.model peut être un label ('Cayenne S') ou un slug ('cayenne-s')
+  // Trouver le slug correspondant
+  let model_slug = deal.model_slug;
+  if (!model_slug && deal.model) {
+    const allModels = [...MODELS.porsche, ...MODELS.landrover];
+    const found = allModels.find(m => m.label === deal.model || m.slug === deal.model);
+    model_slug = found ? found.slug : (deal.model || '').toLowerCase().replace(/\s+/g, '-');
+  }
+  return {
+    listing_url:    deal.listing_url,
+    brand:          deal.brand,
+    model_slug:     model_slug,
+    model_full:     deal.model_full || `${deal.brand} ${deal.model || ''}`.trim(),
+    version:        deal.version || deal.model || null,
+    year:           deal.year,
+    km:             deal.km,
+    price_eur_ttc:  deal.price_eur_ttc,
+    fuel_type:      deal.fuel_type,
+    seller_type:    deal.seller_type,
+    seller_name:    deal.seller_name,
+    country:        deal.country,
+    first_reg_date: deal.first_reg_date,
+  };
+}
+
 // ── CARTE PIPELINE ────────────────────────────────────────────
-function _renderPipelineCard(deal, calc, currentStatus) {
+function _renderPipelineCard(deal, result, currentStatus) {
   const card = document.createElement('div');
   card.className = 'pipeline-card';
   card.dataset.id = deal.id;
 
   const flag  = FLAGS[deal.country] || '🌍';
-  const marge = calc.marge;
-  const margeStr = marge !== null ? `CHF ${marge.toLocaleString('fr-CH')}` : '⚠ NC';
+  const marge = result.marge;
+  const margeStr = marge !== null && marge !== undefined ? `CHF ${(marge >= 0 ? '+' : '') + fmt(marge)}` : '⚠ NC';
 
   // Boutons de transition de statut
   const transButtons = PIPELINE_STATUSES
@@ -81,19 +118,30 @@ function _renderPipelineCard(deal, calc, currentStatus) {
   const lastN  = notes[0] ? `<div class="last-note">${notes[0].text}</div>` : '';
 
   card.innerHTML = `
-    <div class="pc-header">
+    <div class="pc-header" data-toggle="detail">
       <span class="pc-flag">${flag}</span>
       <div class="pc-info">
-        <div class="pc-name">${deal.brand} ${deal.model} ${deal.year || ''}</div>
+        <div class="pc-name">${deal.brand} ${deal.model || deal.model_slug || ''} ${deal.year || ''}</div>
         <div class="pc-meta">${deal.km ? deal.km.toLocaleString('fr-CH') + ' km' : '—'}</div>
       </div>
       <div class="pc-marge ${marge > 0 ? 'profit' : marge < 0 ? 'loss' : ''}">
-        ${calc.margeBlocked ? '⚠' : margeStr}
+        ${result.margeBlocked ? '⚠' : margeStr}
       </div>
+      <div class="pc-chevron">▼</div>
     </div>
     ${deal.listing_url ? `<a class="pc-link" href="${deal.listing_url}" target="_blank">↗ Annonce</a>` : ''}
     <div class="pc-price">€${(deal.price_eur_ttc || 0).toLocaleString('fr-CH')}</div>
     ${lastN}
+    
+    <div class="pc-detail">
+      ${renderLandedHTML(result)}
+      ${renderCashflowHTML(result)}
+      ${renderResaleHTML(result)}
+      ${renderMargeHTML(result)}
+      <div class="pc-detail-actions">
+        <a class="btn-as24-ch" href="${result.as24chUrl}" target="_blank">🇨🇭 Voir AS24.ch</a>
+      </div>
+    </div>
 
     <div class="pc-actions">
       <div class="status-btns">${transButtons}</div>
@@ -121,6 +169,16 @@ function _renderPipelineCard(deal, calc, currentStatus) {
 
     <button class="btn-delete-deal" onclick="window.KARZ.pipeline.deleteDeal('${deal.id}')">Supprimer</button>
   `;
+  
+  // Toggle détail au clic sur le header
+  const header = card.querySelector('.pc-header');
+  if (header) {
+    header.addEventListener('click', e => {
+      if (e.target.closest('a') || e.target.closest('button')) return;
+      card.classList.toggle('expanded');
+    });
+  }
+  
   return card;
 }
 
@@ -130,7 +188,7 @@ export async function moveStatus(id, newStatus) {
   if (updated) {
     const state = getState();
     setState({ deals: state.deals.map(d => d.id === id ? { ...d, pipeline_status: newStatus } : d) }, true);
-    renderPipeline();
+    await renderPipeline();
   }
 }
 
@@ -145,7 +203,7 @@ export async function moveTo(id, newStatus) {
   if (updated) {
     const state = getState();
     setState({ deals: state.deals.map(d => d.id === id ? { ...d, ...patch } : d) }, true);
-    renderPipeline();
+    await renderPipeline();
     if (newStatus === 'mydeals') window.KARZ.mydeals?.refresh();
     if (newStatus === 'lost')    window.KARZ.lost?.refresh();
   }
@@ -201,7 +259,7 @@ export async function addNote(dealId) {
   if (updated) {
     setState({ deals: state.deals.map(d => d.id === dealId ? updated : d) }, true);
     inp.value = '';
-    renderPipeline();
+    await renderPipeline();
   }
 }
 
@@ -210,7 +268,7 @@ export async function deleteDeal(id) {
   await dbDeleteDeal(id);
   const state = getState();
   setState({ deals: state.deals.filter(d => d.id !== id) }, true);
-  renderPipeline();
+  await renderPipeline();
 }
 
 // ── AJOUT MANUEL VIA URL ──────────────────────────────────────
@@ -474,7 +532,7 @@ export async function confirmAdd() {
   if (created) {
     setState({ deals: [created, ...state.deals] }, true);
     document.getElementById('modal-container').innerHTML = '';
-    renderPipeline();
+    await renderPipeline();
     if (resultEl) resultEl.textContent = '✓ Deal ajouté au pipeline !';
   } else {
     if (resultEl) resultEl.textContent = '✗ Erreur Supabase — réessayer.';
