@@ -414,3 +414,55 @@ export async function checkConnection() {
     return !error;
   } catch(e) { return false; }
 }
+
+// ══════════════════════════════════════════════════════════════
+// BENCHMARKS — Comparables CH validés manuellement
+// ══════════════════════════════════════════════════════════════
+export async function getBenchmarks(filters = {}) {
+  try {
+    let q = sb().from('benchmarks').select('*').eq('is_active', true);
+    if (filters.model_slug) q = q.eq('model_slug', filters.model_slug);
+    if (filters.brand)      q = q.eq('brand', filters.brand);
+    if (filters.yearMin)    q = q.gte('year', filters.yearMin);
+    if (filters.yearMax)    q = q.lte('year', filters.yearMax);
+    if (filters.kmMax)      q = q.lte('km', filters.kmMax);
+    if (filters.fuel_type)  q = q.eq('fuel_type', filters.fuel_type);
+    q = q.order('year', { ascending: false }).order('km', { ascending: true });
+    const { data, error } = await q;
+    if (error) { console.error('getBenchmarks:', error); return []; }
+    return data || [];
+  } catch(e) { console.error('getBenchmarks:', e); return []; }
+}
+
+export async function addBenchmark(benchmark) {
+  try {
+    const { data, error } = await sb()
+      .from('benchmarks')
+      .upsert([benchmark], { onConflict: 'listing_url' })
+      .select();
+    if (error) { console.error('addBenchmark:', error); return null; }
+    return data?.[0];
+  } catch(e) { console.error('addBenchmark:', e); return null; }
+}
+
+export async function deleteBenchmark(id) {
+  try {
+    const { error } = await sb()
+      .from('benchmarks')
+      .update({ is_active: false })
+      .eq('id', id);
+    return !error;
+  } catch(e) { return false; }
+}
+
+export async function updateBenchmark(id, patch) {
+  try {
+    const { data, error } = await sb()
+      .from('benchmarks')
+      .update(patch)
+      .eq('id', id)
+      .select();
+    if (error) return null;
+    return data?.[0];
+  } catch(e) { return null; }
+}
