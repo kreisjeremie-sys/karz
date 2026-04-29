@@ -326,25 +326,134 @@ b{font-weight:600}
 .admin-note{font-size:11px;color:var(--text2);padding:8px 11px;background:var(--bg2);border-radius:5px}
 
 /* NEW OPPORTUNITY */
-.newopp-section{background:var(--card);border:0.5px solid var(--border);border-radius:8px;padding:18px;margin-bottom:14px}
-.newopp-section h3{font-size:13px;font-weight:600;color:var(--text);margin:0 0 10px;text-transform:uppercase;letter-spacing:0.5px}
-.newopp-help{font-size:11px;color:var(--text3);margin:0 0 12px}
-.newopp-url-row{display:flex;gap:8px;align-items:stretch}
-.newopp-url-row input{flex:1;padding:8px 11px;border:0.5px solid var(--border);border-radius:5px;font-size:11px}
-.newopp-status{margin-top:8px;font-size:11px}
-.newopp-status .ok{color:var(--green2)}
-.newopp-status .warn{color:#991B1B}
-.newopp-status .loading{color:var(--text3)}
-.newopp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.newopp-fg label{display:block;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;font-weight:500}
-.newopp-fg input,.newopp-fg select{width:100%;padding:7px 9px;border:0.5px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg)}
-.newopp-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
-.newopp-result-section{background:var(--card);border:0.5px solid var(--border);border-radius:8px;padding:18px;margin-top:14px}
-.newopp-result-section h3{font-size:13px;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px}
-.newopp-block{margin-bottom:12px;padding:10px 12px;background:var(--bg);border-radius:5px;border:0.5px solid var(--border)}
-.newopp-block-title{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px}
-.newopp-block.warn{background:#FFF7ED;color:#9A3412;border-color:#FED7AA}
-@media(max-width:900px){.newopp-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* NEW OPPORTUNITY — méthodes import */
+.newopp-method{padding:12px;background:var(--bg);border-radius:6px;margin-bottom:12px;border:0.5px solid var(--border)}
+.newopp-method strong{display:block;font-size:11px;margin-bottom:6px;color:var(--text)}
+.newopp-help-sm{font-size:10px;color:var(--text3);margin:4px 0 8px}
+.bookmarklet-btn{display:inline-block;padding:8px 14px;background:linear-gradient(135deg,#185FA5,#0F6E56);color:white;border-radius:5px;font-weight:600;font-size:11px;text-decoration:none;cursor:move;letter-spacing:0.5px}
+.bookmarklet-btn:hover{box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+
+/* PIPELINE — détail dépliable */
+.pipeline-card{cursor:default}
+.pipeline-card .pc-header{display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 0}
+.pipeline-card .pc-chevron{font-size:9px;color:var(--text3);transition:transform 0.2s;margin-left:auto}
+.pipeline-card.expanded .pc-chevron{transform:rotate(180deg)}
+.pipeline-card .pc-detail{display:none;margin-top:8px;padding-top:10px;border-top:0.5px solid var(--border)}
+.pipeline-card.expanded .pc-detail{display:block}
+.pc-detail-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+
+/* CASHFLOW — bloc spécial */
+.cashflow-section{background:#FFFBEB;border:0.5px solid #FED7AA}
+.cashflow-section .ds-title{color:#92400E}
+
+/* DASHBOARD */
+.dashboard-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px}
+.dashboard-header h2{margin:0;font-size:18px;font-weight:600}
+.dashboard-date{color:var(--text3);font-size:11px;text-transform:capitalize}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.kpi-card{background:var(--card);border:0.5px solid var(--border);border-radius:8px;padding:16px}
+.kpi-card.kpi-blue{background:#EBF5FB;border-color:#BFDBFE}
+.kpi-card.kpi-green{background:#ECFDF5;border-color:#A7F3D0}
+.kpi-card.kpi-red{background:#FEF2F2;border-color:#FECACA}
+.kpi-label{font-size:10px;text-transform:uppercase;color:var(--text3);letter-spacing:0.5px;font-weight:500}
+.kpi-value{font-size:28px;font-weight:600;margin:4px 0;color:var(--text)}
+.kpi-sub{font-size:10px;color:var(--text3)}
+.dashboard-section{background:var(--card);border:0.5px solid var(--border);border-radius:8px;padding:18px;margin-bottom:14px}
+.dashboard-section h3{font-size:12px;font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3)}
+.dash-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border)}
+.dash-row:last-child{border-bottom:none}
+.dash-rank{font-weight:600;color:var(--text3);width:28px}
+.dash-flag{font-size:14px}
+.dash-info{flex:1}
+.dash-name{font-weight:500;font-size:12px}
+.dash-meta{font-size:10px;color:var(--text3)}
+.dash-marge{font-weight:600;font-size:12px}
+.dash-marge.profit{color:#0F6E56}
+.dash-marge.loss{color:#991B1B}
+.dash-bars{display:flex;flex-direction:column;gap:6px}
+.dash-bar{position:relative;background:#F3F4F6;border-radius:4px;height:24px;overflow:hidden}
+.dash-bar-fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,#0F6E56,#185FA5);border-radius:4px}
+.dash-bar-label{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:white;font-size:11px;font-weight:500;text-shadow:0 1px 2px rgba(0,0,0,0.3)}
+.dash-loading{padding:20px;text-align:center;color:var(--text3);font-size:11px}
+
+/* SUPPLIERS */
+.suppliers-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.suppliers-header h2{margin:0;font-size:18px;font-weight:600}
+.suppliers-count{font-size:11px;color:var(--text3)}
+.suppliers-filters{display:flex;gap:10px;margin-bottom:14px}
+.suppliers-filters input,.suppliers-filters select{padding:8px 11px;border:0.5px solid var(--border);border-radius:5px;font-size:11px;background:var(--bg)}
+.suppliers-filters input{flex:1}
+.supplier-card{background:var(--card);border:0.5px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px}
+.sc-header{display:flex;align-items:center;gap:12px}
+.sc-flag{font-size:18px}
+.sc-info{flex:1}
+.sc-name{font-weight:600;font-size:13px}
+.sc-meta{font-size:10px;color:var(--text3)}
+.sc-stats{display:flex;gap:14px}
+.sc-stat{text-align:center}
+.sc-stat-l{display:block;font-size:9px;color:var(--text3);text-transform:uppercase}
+.sc-stat-v{font-weight:600;font-size:13px}
+.sc-rating{text-align:right}
+.sc-stars{color:#F59E0B;font-size:11px;letter-spacing:1px}
+.sc-pricing{color:#0F6E56;font-weight:600;font-size:11px}
+.sc-contact{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:10px;color:var(--text3)}
+.sc-contact a{color:var(--text);text-decoration:none}
+.sc-contact a:hover{text-decoration:underline}
+.sc-lastseen{margin-left:auto;font-style:italic}
+.sc-notes{margin-top:8px;font-size:11px;color:var(--text2);font-style:italic;padding:6px 10px;background:var(--bg);border-radius:4px}
+.sc-actions{display:flex;gap:8px;margin-top:8px;justify-content:flex-end}
+.btn-sm{padding:5px 10px;font-size:10px;border:0.5px solid var(--border);background:none;border-radius:4px;cursor:pointer}
+.btn-sm:hover{background:var(--bg)}
+.btn-sm.btn-red{color:#991B1B;border-color:#FECACA}
+.btn-sm.btn-red:hover{background:#FEE2E2}
+
+/* BENCHMARK */
+.bench-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.bench-header h2{margin:0;font-size:18px;font-weight:600}
+.bench-count{font-size:11px;color:var(--text3)}
+.bench-context-banner{display:flex;align-items:center;gap:14px;padding:12px 16px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;margin-bottom:14px;font-size:11px}
+.bench-context-banner b{color:#92400E}
+.bench-context-banner button{margin-left:auto}
+.bench-actions-row{display:flex;gap:10px;margin-bottom:14px;align-items:center}
+.bench-filters{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:14px;padding:12px;background:var(--bg);border-radius:6px}
+.bench-filters .fg label{font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:500;display:block;margin-bottom:4px}
+.bench-filters .fg input,.bench-filters .fg select{width:100%;padding:6px 8px;border:0.5px solid var(--border);border-radius:4px;font-size:11px;background:var(--card)}
+.bench-stats{margin-bottom:14px}
+.bench-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bench-stat-block{padding:10px 14px;background:var(--bg);border:0.5px solid var(--border);border-radius:6px}
+.bench-stat-block.highlight{background:#ECFDF5;border-color:#A7F3D0}
+.bench-stat-l{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;font-weight:500;margin-bottom:6px}
+.bench-stat-row{display:flex;gap:18px;font-size:11px}
+.bench-stat-row.no-data{color:var(--text3);font-style:italic}
+.bench-list{background:var(--card);border:0.5px solid var(--border);border-radius:6px}
+.bench-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:0.5px solid var(--border)}
+.bench-row:last-child{border-bottom:none}
+.bench-row.selected{background:#ECFDF5}
+.bench-cb{width:16px;height:16px;cursor:pointer}
+.bench-flag{font-size:14px}
+.bench-info{flex:1}
+.bench-name{font-weight:500;font-size:12px}
+.bench-meta{font-size:10px;color:var(--text3)}
+.bench-price{font-weight:600;font-size:13px;min-width:90px;text-align:right}
+.bench-link{color:var(--text);text-decoration:none;font-weight:bold;padding:4px 8px;border:0.5px solid var(--border);border-radius:4px}
+.bench-link:hover{background:var(--bg)}
+.bench-import-section{padding:14px;background:var(--bg);border-radius:6px;margin-bottom:14px}
+.bench-import-section label{font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:500;display:block;margin-bottom:6px}
+.bench-manual-form{margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border)}
+
+/* Resale methods double */
+.resale-methods-section{margin-top:12px;padding:14px;background:#F9FAFB;border:0.5px solid var(--border);border-radius:6px}
+.resale-methods-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.resale-method{padding:12px;background:var(--card);border:0.5px solid var(--border);border-radius:5px}
+.resale-method.active{border-color:#0F6E56;background:#ECFDF5}
+.rm-label{font-size:10px;text-transform:uppercase;color:var(--text3);font-weight:500;margin-bottom:6px}
+.rm-price{font-size:18px;font-weight:600;margin-bottom:8px}
+.rm-sub{font-size:10px;color:var(--text3)}
+.final-price-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#FEF9C3;border-radius:5px;border:0.5px solid #FDE68A}
+.final-price-row label{font-size:11px;font-weight:500;flex-shrink:0}
+.final-price-row input{flex:1;padding:6px 10px;border:0.5px solid var(--border);border-radius:4px;font-size:13px;font-weight:600;text-align:right}
+.rm-help{margin-top:6px;font-size:10px;color:var(--text3);font-style:italic;padding-left:4px}
 </style>
 </head>
 <body>
@@ -364,20 +473,23 @@ b{font-weight:600}
 
 <!-- NAV -->
 <div class="nav">
-  <button class="nav-btn active" data-page="search"   onclick="window.KARZ.showPage('search')">RECHERCHE</button>
+  <button class="nav-btn active" data-page="dashboard" onclick="window.KARZ.showPage('dashboard')">DASHBOARD</button>
+  <button class="nav-btn"        data-page="search"   onclick="window.KARZ.showPage('search')">RECHERCHE</button>
   <button class="nav-btn"        data-page="newopp"   onclick="window.KARZ.showPage('newopp')">+ NOUVEAU</button>
   <button class="nav-btn"        data-page="pipeline" onclick="window.KARZ.showPage('pipeline')">PIPELINE <span class="nav-pill" id="pill-pipeline">0</span></button>
   <button class="nav-btn"        data-page="mydeals"  onclick="window.KARZ.showPage('mydeals')">MY DEALS <span class="nav-pill" id="pill-mydeals">0</span></button>
   <button class="nav-btn"        data-page="lost"     onclick="window.KARZ.showPage('lost')">DEALS LOST <span class="nav-pill" id="pill-lost">0</span></button>
   <button class="nav-btn"        data-page="market"   onclick="window.KARZ.showPage('market')">MARCHÉ CH</button>
   <button class="nav-btn"        data-page="heatmap"  onclick="window.KARZ.showPage('heatmap')">HEATMAP</button>
+  <button class="nav-btn"        data-page="suppliers"  onclick="window.KARZ.showPage('suppliers')">FOURNISSEURS</button>
+  <button class="nav-btn"        data-page="benchmark"  onclick="window.KARZ.showPage('benchmark')">BENCHMARK</button>
   <button class="nav-btn"        data-page="admin"    onclick="window.KARZ.showPage('admin')">ADMIN</button>
 </div>
 
 <!-- PAGES -->
 
 <!-- SEARCH -->
-<div id="page-search" class="page active">
+<div id="page-search" class="page">
   <div class="search-status-bar" id="search-status">
     <span class="status-dot"></span>
     <span>Chargement…</span>
@@ -391,6 +503,10 @@ b{font-weight:600}
 <!-- PIPELINE -->
 <div id="page-newopp" class="page">
   <div id="newopp-content"></div>
+</div>
+
+<div id="page-dashboard" class="page active">
+  <div id="dashboard-content"></div>
 </div>
 
 <div id="page-pipeline" class="page">
@@ -426,6 +542,14 @@ b{font-weight:600}
 </div>
 
 <!-- ADMIN -->
+<div id="page-suppliers" class="page">
+  <div id="suppliers-content"></div>
+
+<div id="page-benchmark" class="page">
+  <div id="benchmark-content"></div>
+</div>
+</div>
+
 <div id="page-admin" class="page">
   <div class="section-header">Admin</div>
   <div id="admin-content"></div>
@@ -443,8 +567,11 @@ import * as config   from './js/config.js';
 import * as state    from './js/state.js';
 import * as calc     from './js/calc.js';
 import * as db       from './js/db.js';
-import * as search   from './js/search.js';
-  import * as newopp   from './js/new-opportunity.js';
+import * as search    from './js/search.js';
+  import * as newopp    from './js/new-opportunity.js';
+  import * as dashboard from './js/dashboard.js';
+  import * as suppliers from './js/suppliers.js';
+  import * as benchmark from './js/benchmark.js';
 import * as pipeline from './js/pipeline.js';
 import * as mydeals  from './js/my-deals.js';
 import * as lost     from './js/lost.js';
@@ -456,7 +583,7 @@ import * as admin    from './js/admin.js';
 window.KARZ_CONFIG = config;
 window.KARZ = {
   config, state, calc, db,
-  search, newopp, pipeline, mydeals, lost,
+  search, dashboard, suppliers, benchmark, newopp, pipeline, mydeals, lost,
   marketCH, heatmap, admin,
   showPage, toggleTvaMode,
 };
@@ -485,8 +612,10 @@ async function init() {
   state.setState({ deals: allDeals }, true);
   updatePills();
 
-  // 5. Initialiser la page courante
-  await showPage('search');
+  // 5. Initialiser la page courante (lit ?page= pour démarrer sur l'onglet demandé par bookmarklet)
+  const params = new URLSearchParams(window.location.search);
+  const startPage = params.get('page') || 'dashboard';
+  await showPage(startPage);
 
   // 6. S'abonner aux changements pour mettre à jour les pills
   state.subscribe(() => updatePills());
@@ -524,7 +653,10 @@ async function showPage(name) {
   document.getElementById('page-' + name)?.classList.add('active');
   document.querySelector(`.nav-btn[data-page="${name}"]`)?.classList.add('active');
 
+  if (name === 'dashboard') await dashboard.initDashboard();
   if (name === 'newopp')   await newopp.initNewOpportunity();
+  if (name === 'suppliers') await suppliers.initSuppliers();
+  if (name === 'benchmark') await benchmark.initBenchmark();
   if (name === 'search')   await search.initSearch();
   if (name === 'pipeline') await pipeline.initPipeline();
   if (name === 'mydeals')  await mydeals.initMyDeals();
