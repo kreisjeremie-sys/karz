@@ -10,18 +10,17 @@ let _currentBenchmarkSelection = null;
 let _customResalePrice = null;
 
 export async function initNewOpportunity() {
-  // Toujours re-initialiser si prefill dans l'URL (bookmarklet redirect)
-  const hasPrefill = sessionStorage.getItem('karz_prefill');
+  const hasPrefill = sessionStorage.getItem('karz_prefill') || new URLSearchParams(window.location.search).get('prefill');
   const hasBenchmark = sessionStorage.getItem('karz_benchmark_selection');
   
   if (_rendered && !hasPrefill && !hasBenchmark) return;
   _rendered = true;
   _buildUI();
   
-  // Attendre que le DOM soit prêt avant de remplir
-  await new Promise(r => setTimeout(r, 50));
+  // Attendre rendu DOM complet
+  await new Promise(r => setTimeout(r, 80));
   
-  if (hasPrefill) _checkPrefill();
+  if (hasPrefill) await _checkPrefill();    // FIX: await obligatoire (async)
   if (hasBenchmark) _checkBenchmarkReturn();
 }
 
@@ -377,40 +376,71 @@ function _handleReset() {
 // ══════════════════════════════════════════════════════════════
 // PREFILL depuis URL (?prefill=...) — utilisé par le bookmarklet
 // ══════════════════════════════════════════════════════════════
-function _checkPrefill() {
-  // Lire depuis sessionStorage (mis par le bookmarklet)
-  const raw = sessionStorage.getItem('karz_prefill');
+async function _checkPrefill() {
+  // Source 1 : sessionStorage (nouveau bookmarklet — stocke avant redirect)
+  let raw = sessionStorage.getItem('karz_prefill');
+  if (raw) {
+    sessionStorage.removeItem('karz_prefill');
+  } else {
+    // Source 2 : URL ?prefill= (ancien bookmarklet — passe via URL)
+    // URLSearchParams.get() décode automatiquement — NE PAS re-décoder
+    const urlRaw = new URLSearchParams(window.location.search).get('prefill');
+    if (urlRaw) {
+      raw = urlRaw; // déjà décodé par URLSearchParams — pas de decodeURIComponent
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }
   if (!raw) return;
   
-  try {
-    sessionStorage.removeItem('karz_prefill'); // Consommer
-    const data = JSON.parse(raw);
-    
-    // D'abord setter la marque pour charger les modèles
-    const brandEl = document.getElementById('newopp-brand');
-    if (brandEl && data.brand) {
-      brandEl.value = data.brand;
-      onBrandChange();
-    }
-    
-    // Setter l'URL
-    const urlEl = document.getElementById('newopp-listing-url');
-    if (urlEl && data.url) urlEl.value = data.url;
-    
-    // Remplir tout le formulaire
-    _fillForm(data);
-    
-    const status = document.getElementById('newopp-fetch-status');
-    if (status) status.innerHTML = '<span class="ok">✓ Données importées via bookmarklet — vérifiez et calculez</span>';
-    
-  } catch(e) {
-    console.error('Prefill error:', e);
+  let data;
+  try { data = JSON.parse(raw); }
+  catch(e) { console.error('Prefill JSON parse error:', e, raw?.slice(0,200)); return; }
+  
+  // 1. Marque — reconstruit le select modèle
+  const brandEl = document.getElementById('newopp-brand');
+  if (brandEl && data.brand) {
+    brandEl.value = data.brand;
+    onBrandChange(); // Reconstruit <select> modèle
+    // Attendre le rendu DOM du nouveau select
+    await new Promise(r => setTimeout(r, 50));
   }
+  
+  // 2. Modèle — essayer le slug exact, puis fallback sur le premier mot
+  const modelEl = document.getElementById('newopp-model');
+  if (modelEl && data.model_slug) {
+    modelEl.value = data.model_slug;
+    // Si pas trouvé (slug pas dans les options), essayer de matcher partiellement
+    if (!modelEl.value || modelEl.value === '') {
+      const slug = data.model_slug.toLowerCase();
+      const opts = Array.from(modelEl.options);
+      const match = opts.find(o => o.value && slug.includes(o.value.split('-')[0]));
+      if (match) modelEl.value = match.value;
+    }
+  }
+  
+  // 3. Tous les autres champs
+  const set = (id, val) => {
+    if (val === null || val === undefined || val === '') return;
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  };
+  set('newopp-version',     data.version);
+  set('newopp-year',        data.year);
+  set('newopp-km',          data.km);
+  set('newopp-fuel',        data.fuel_type);
+  set('newopp-price',       data.price_eur_ttc || data.price_chf_ttc);
+  set('newopp-country',     data.country || 'DE');
+  set('newopp-seller',      data.seller_type || 'pro');
+  set('newopp-seller-name', data.seller_name);
+  set('newopp-listing-url', data.url);
+  
+  const status = document.getElementById('newopp-fetch-status');
+  if (status) status.innerHTML = '<span class="ok">✓ Données importées — vérifiez et calculez</span>';
 }
 
 // ══════════════════════════════════════════════════════════════
 // BOOKMARKLET — code injecté qui tourne sur AS24/Mobile.de etc.
 // ══════════════════════════════════════════════════════════════
 function _buildBookmarkletCode() {
-  return `javascript:(function(){var h=window.location.href,d={url:h};try{var n=document.getElementById('__NEXT_DATA__');if(n){var p=JSON.parse(n.textContent).props.pageProps,it=p.listingDetails||p.detail||p.listing||p.detailItem||p.vehicleDetails||{},v=it.vehicle||{},t=it.tracking||{},pr=(it.prices&&it.prices.public)||it.price||{},pf=pr.priceFormatted||'',pn=parseInt(pf.replace(/[^0-9]/g,''))||0,fr=t.firstRegistration||v.firstRegistration||'',ym=String(fr).match(/20[12][0-9]/),fm={b:'essence',d:'diesel',e:'electrique',m:'hybride',p:'hybride'},fl=fm[t.fuelType]||(function(){var f=String(v.fuel||'').toLowerCase();return f.includes('diesel')?'diesel':f.includes('elec')||f.includes('elek')?'electrique':f.includes('hybr')?'hybride':f.includes('enz')||f.includes('ess')||f.includes('gas')?'essence':null;})(),mk=String(v.make||'').toLowerCase();d.brand=mk==='porsche'?'Porsche':mk.includes('land')?'Land Rover':v.make||'';d.model_slug=String(v.model||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');d.model_full=((v.make||'')+' '+(v.model||'')+' '+(v.variant||'')).trim();d.version=v.variant||null;d.year=ym?parseInt(ym[0]):null;d.km=parseInt(t.mileage||v.mileageInKm||0)||null;d.fuel_type=fl;d.price_eur_ttc=pf.includes('CHF')?null:pn;d.price_chf_ttc=pf.includes('CHF')?pn:null;d.country=String(((it.location)||{}).countryCode||'DE').toUpperCase();d.seller_type=String(((it.seller)||{}).type||'').toLowerCase().startsWith('d')?'pro':'private';d.seller_name=((it.seller)||{}).companyName||((it.seller)||{}).name||'';}}catch(e){}if(!d.price_eur_ttc&&!d.price_chf_ttc){var px=prompt('Prix non détecté. Entrez le prix :');if(px)d.price_eur_ttc=parseInt(px.replace(/[^0-9]/g,''));}sessionStorage.setItem('karz_prefill',JSON.stringify(d));window.location.href='https://karz-rho.vercel.app/?page=newopp';})();`;
+  return `javascript:(function(){var h=window.location.href,d={url:h};try{var n=document.getElementById('__NEXT_DATA__');if(n){var p=JSON.parse(n.textContent).props.pageProps,it=p.listingDetails||p.detail||p.listing||p.detailItem||p.vehicleDetails||{},v=it.vehicle||{},t=it.tracking||{},pr=(it.prices&&it.prices.public)||it.price||{},pf=pr.priceFormatted||'',pn=parseInt(pf.replace(/[^0-9]/g,''))||0,fr=t.firstRegistration||v.firstRegistration||'',ym=String(fr).match(/20[12][0-9]/),fm={b:'essence',d:'diesel',e:'electrique',m:'hybride',p:'hybride'},fl=fm[t.fuelType]||(function(){var f=String(v.fuel||'').toLowerCase();return f.includes('diesel')?'diesel':f.includes('elec')?'electrique':f.includes('hybr')?'hybride':f.includes('gas')||f.includes('enz')||f.includes('ess')?'essence':null;})(),mk=String(v.make||'').toLowerCase();d.brand=mk==='porsche'?'Porsche':mk.includes('land')?'Land Rover':v.make||'';d.model_slug=String(v.model||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');d.model_full=((v.make||'')+' '+(v.model||'')+' '+(v.variant||'')).trim();d.version=v.variant||null;d.year=ym?parseInt(ym[0]):null;d.km=parseInt(t.mileage||v.mileageInKm||0)||null;d.fuel_type=fl;d.price_eur_ttc=pf.includes('CHF')?null:pn;d.price_chf_ttc=pf.includes('CHF')?pn:null;d.country=String(((it.location)||{}).countryCode||'DE').toUpperCase();d.seller_type=String(((it.seller)||{}).type||'').toLowerCase().startsWith('d')?'pro':'private';d.seller_name=((it.seller)||{}).companyName||((it.seller)||{}).name||'';}}catch(e){}if(!d.price_eur_ttc&&!d.price_chf_ttc){var px=prompt('Prix (EUR, chiffres):');if(px)d.price_eur_ttc=parseInt(px.replace(/[^0-9]/g,''));}sessionStorage.setItem('karz_prefill',JSON.stringify(d));window.location.href='https://karz-rho.vercel.app/?page=newopp';})();`;
 }
