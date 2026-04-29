@@ -294,16 +294,49 @@ function _levelToUrlParams(level, year, km) {
 }
 
 // Mapping marque+modèle → slug AS24
+// Ordre important : tester les sous-modèles AVANT les modèles génériques
 function findModelSlug(brand, model) {
-  const m = model?.toLowerCase() || '';
-  if (m.includes('macan'))   return 'macan';
-  if (m.includes('cayenne')) return 'cayenne';
-  if (m.includes('defender 90') || m.includes('defender-90')) return 'defender-90';
-  if (m.includes('defender 130') || m.includes('defender-130')) return 'defender-130';
-  if (m.includes('defender')) return 'defender';
-  if (m.includes('evoque'))  return 'range-rover-evoque';
-  if (m.includes('sport'))   return 'range-rover-sport';
-  if (m.includes('range rover') || m.includes('range-rover')) return 'range-rover';
+  const m = (model || '').toLowerCase().replace(/\s+/g, '-');
+  // Macan
+  if (m.includes('macan-gts'))      return 'macan-gts';
+  if (m.includes('macan-turbo'))    return 'macan-turbo';
+  if (m.includes('macan-s'))        return 'macan-s';
+  if (m.includes('macan'))          return 'macan';
+  // Cayenne
+  if (m.includes('cayenne-coupe-turbo-gt')) return 'cayenne-coupe-turbo-gt';
+  if (m.includes('cayenne-coupe-gts'))      return 'cayenne-coupe-gts';
+  if (m.includes('cayenne-coupe'))          return 'cayenne-coupe';
+  if (m.includes('cayenne-turbo-s-e'))      return 'cayenne-turbo-s-e-hybrid';
+  if (m.includes('cayenne-e-hybrid'))       return 'cayenne-e-hybrid';
+  if (m.includes('cayenne-turbo'))          return 'cayenne-turbo';
+  if (m.includes('cayenne-gts'))            return 'cayenne-gts';
+  if (m.includes('cayenne-s'))              return 'cayenne-s';
+  if (m.includes('cayenne'))                return 'cayenne';
+  // Defender (ordre: spécifique d'abord)
+  if (m.includes('defender-90-v8'))   return 'defender-90-v8';
+  if (m.includes('defender-90-x'))    return 'defender-90-x';
+  if (m.includes('defender-90'))      return 'defender-90';
+  if (m.includes('defender-110-v8'))  return 'defender-110-v8';
+  if (m.includes('defender-110-x'))   return 'defender-110-x';
+  if (m.includes('defender-110-d300')) return 'defender-110-d300';
+  if (m.includes('defender-110-d350')) return 'defender-110-d350';
+  if (m.includes('defender-110'))     return 'defender-110';
+  if (m.includes('defender-130'))     return 'defender-130';
+  if (m.includes('defender'))         return 'defender-110'; // fallback Defender générique
+  // Range Rover (ordre: spécifique d'abord)
+  if (m.includes('evoque-p300e'))                  return 'range-rover-evoque-p300e';
+  if (m.includes('evoque'))                        return 'range-rover-evoque';
+  if (m.includes('velar-p400e'))                   return 'range-rover-velar-p400e';
+  if (m.includes('velar'))                         return 'range-rover-velar';
+  if (m.includes('sport-svr'))                     return 'range-rover-sport-svr';
+  if (m.includes('sport-sv'))                      return 'range-rover-sport-sv';
+  if (m.includes('sport-d350'))                    return 'range-rover-sport-d350';
+  if (m.includes('sport-p400e'))                   return 'range-rover-sport-p400e';
+  if (m.includes('sport'))                         return 'range-rover-sport';
+  if (m.includes('autobiography'))                 return 'range-rover-autobiography';
+  if (m.includes('p510e'))                         return 'range-rover-p510e';
+  if (m.includes('range-rover-sv') || m === 'sv')  return 'range-rover-sv';
+  if (m.includes('range-rover'))                   return 'range-rover';
   return null;
 }
 
