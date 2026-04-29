@@ -11,7 +11,7 @@ let _customResalePrice = null;
 
 export async function initNewOpportunity() {
   // Toujours re-initialiser si prefill dans l'URL (bookmarklet redirect)
-  const hasPrefill = new URLSearchParams(window.location.search).get('prefill');
+  const hasPrefill = sessionStorage.getItem('karz_prefill');
   const hasBenchmark = sessionStorage.getItem('karz_benchmark_selection');
   
   if (_rendered && !hasPrefill && !hasBenchmark) return;
@@ -378,34 +378,30 @@ function _handleReset() {
 // PREFILL depuis URL (?prefill=...) — utilisé par le bookmarklet
 // ══════════════════════════════════════════════════════════════
 function _checkPrefill() {
-  const params = new URLSearchParams(window.location.search);
-  const prefillRaw = params.get('prefill');
-  if (!prefillRaw) return;
+  // Lire depuis sessionStorage (mis par le bookmarklet)
+  const raw = sessionStorage.getItem('karz_prefill');
+  if (!raw) return;
+  
   try {
-    const data = JSON.parse(decodeURIComponent(prefillRaw));
+    sessionStorage.removeItem('karz_prefill'); // Consommer
+    const data = JSON.parse(raw);
     
-    // D'abord setter la marque pour que les modèles soient chargés
+    // D'abord setter la marque pour charger les modèles
     const brandEl = document.getElementById('newopp-brand');
     if (brandEl && data.brand) {
       brandEl.value = data.brand;
-      onBrandChange(); // Recharger les options modèle
+      onBrandChange();
     }
     
-    // Setter l'URL dans le champ URL aussi
+    // Setter l'URL
     const urlEl = document.getElementById('newopp-listing-url');
     if (urlEl && data.url) urlEl.value = data.url;
     
-    // Puis remplir le reste
+    // Remplir tout le formulaire
     _fillForm(data);
     
     const status = document.getElementById('newopp-fetch-status');
     if (status) status.innerHTML = '<span class="ok">✓ Données importées via bookmarklet — vérifiez et calculez</span>';
-    
-    // Nettoyer URL sans recharger la page
-    window.history.replaceState({}, '', window.location.pathname);
-    
-    // Scroller vers le formulaire
-    document.getElementById('newopp-content')?.scrollIntoView({ behavior: 'smooth' });
     
   } catch(e) {
     console.error('Prefill error:', e);
@@ -416,5 +412,5 @@ function _checkPrefill() {
 // BOOKMARKLET — code injecté qui tourne sur AS24/Mobile.de etc.
 // ══════════════════════════════════════════════════════════════
 function _buildBookmarkletCode() {
-  return `javascript:(function(){var h=window.location.href,d={url:h};try{var n=document.getElementById('__NEXT_DATA__');if(n){var p=JSON.parse(n.textContent).props.pageProps,it=p.listingDetails||p.detail||p.listing||p.detailItem||p.vehicleDetails||{},v=it.vehicle||{},t=it.tracking||{},pr=(it.prices&&it.prices.public)||it.price||{},pf=pr.priceFormatted||'',pn=parseInt(pf.replace(/[^0-9]/g,''))||0,fr=t.firstRegistration||v.firstRegistration||'',ym=String(fr).match(/20[12][0-9]/),fm={b:'essence',d:'diesel',e:'electrique',m:'hybride',p:'hybride'},fl=fm[t.fuelType]||(function(){var f=String(v.fuel||'').toLowerCase();return f.includes('diesel')?'diesel':f.includes('elec')||f.includes('elek')?'electrique':f.includes('hybr')?'hybride':f.includes('enz')||f.includes('ess')||f.includes('gas')?'essence':null;})(),mk=String(v.make||'').toLowerCase();d.brand=mk==='porsche'?'Porsche':mk.includes('land')?'Land Rover':v.make||'';d.model_slug=String(v.model||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');d.model_full=((v.make||'')+' '+(v.model||'')+' '+(v.variant||'')).trim();d.version=v.variant||null;d.year=ym?parseInt(ym[0]):null;d.km=parseInt(t.mileage||v.mileageInKm||0)||null;d.fuel_type=fl;d.price_eur_ttc=pf.includes('CHF')?null:pn;d.price_chf_ttc=pf.includes('CHF')?pn:null;d.country=String(((it.location)||{}).countryCode||'DE').toUpperCase();d.seller_type=String(((it.seller)||{}).type||'').toLowerCase().startsWith('d')?'pro':'private';d.seller_name=((it.seller)||{}).companyName||((it.seller)||{}).name||'';}}catch(e){}if(!d.price_eur_ttc&&!d.price_chf_ttc){var px=prompt('Prix non détecté. Entrez le prix :');if(px)d.price_eur_ttc=parseInt(px.replace(/[^0-9]/g,''));}window.location.href='https://karz-rho.vercel.app/?prefill='+encodeURIComponent(JSON.stringify(d))+'&page=newopp';})();`;
+  return `javascript:(function(){var h=window.location.href,d={url:h};try{var n=document.getElementById('__NEXT_DATA__');if(n){var p=JSON.parse(n.textContent).props.pageProps,it=p.listingDetails||p.detail||p.listing||p.detailItem||p.vehicleDetails||{},v=it.vehicle||{},t=it.tracking||{},pr=(it.prices&&it.prices.public)||it.price||{},pf=pr.priceFormatted||'',pn=parseInt(pf.replace(/[^0-9]/g,''))||0,fr=t.firstRegistration||v.firstRegistration||'',ym=String(fr).match(/20[12][0-9]/),fm={b:'essence',d:'diesel',e:'electrique',m:'hybride',p:'hybride'},fl=fm[t.fuelType]||(function(){var f=String(v.fuel||'').toLowerCase();return f.includes('diesel')?'diesel':f.includes('elec')||f.includes('elek')?'electrique':f.includes('hybr')?'hybride':f.includes('enz')||f.includes('ess')||f.includes('gas')?'essence':null;})(),mk=String(v.make||'').toLowerCase();d.brand=mk==='porsche'?'Porsche':mk.includes('land')?'Land Rover':v.make||'';d.model_slug=String(v.model||'').toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');d.model_full=((v.make||'')+' '+(v.model||'')+' '+(v.variant||'')).trim();d.version=v.variant||null;d.year=ym?parseInt(ym[0]):null;d.km=parseInt(t.mileage||v.mileageInKm||0)||null;d.fuel_type=fl;d.price_eur_ttc=pf.includes('CHF')?null:pn;d.price_chf_ttc=pf.includes('CHF')?pn:null;d.country=String(((it.location)||{}).countryCode||'DE').toUpperCase();d.seller_type=String(((it.seller)||{}).type||'').toLowerCase().startsWith('d')?'pro':'private';d.seller_name=((it.seller)||{}).companyName||((it.seller)||{}).name||'';}}catch(e){}if(!d.price_eur_ttc&&!d.price_chf_ttc){var px=prompt('Prix non détecté. Entrez le prix :');if(px)d.price_eur_ttc=parseInt(px.replace(/[^0-9]/g,''));}sessionStorage.setItem('karz_prefill',JSON.stringify(d));window.location.href='https://karz-rho.vercel.app/?page=newopp';})();`;
 }
