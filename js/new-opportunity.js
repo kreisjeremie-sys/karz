@@ -10,11 +10,19 @@ let _currentBenchmarkSelection = null;
 let _customResalePrice = null;
 
 export async function initNewOpportunity() {
-  if (_rendered) return;
+  // Toujours re-initialiser si prefill dans l'URL (bookmarklet redirect)
+  const hasPrefill = new URLSearchParams(window.location.search).get('prefill');
+  const hasBenchmark = sessionStorage.getItem('karz_benchmark_selection');
+  
+  if (_rendered && !hasPrefill && !hasBenchmark) return;
   _rendered = true;
   _buildUI();
-  _checkPrefill(); // Si bookmarklet ou URL ?prefill=
-  _checkBenchmarkReturn(); // Si retour depuis page benchmark
+  
+  // Attendre que le DOM soit prêt avant de remplir
+  await new Promise(r => setTimeout(r, 50));
+  
+  if (hasPrefill) _checkPrefill();
+  if (hasBenchmark) _checkBenchmarkReturn();
 }
 
 function _buildUI() {
@@ -375,11 +383,30 @@ function _checkPrefill() {
   if (!prefillRaw) return;
   try {
     const data = JSON.parse(decodeURIComponent(prefillRaw));
+    
+    // D'abord setter la marque pour que les modèles soient chargés
+    const brandEl = document.getElementById('newopp-brand');
+    if (brandEl && data.brand) {
+      brandEl.value = data.brand;
+      onBrandChange(); // Recharger les options modèle
+    }
+    
+    // Setter l'URL dans le champ URL aussi
+    const urlEl = document.getElementById('newopp-listing-url');
+    if (urlEl && data.url) urlEl.value = data.url;
+    
+    // Puis remplir le reste
     _fillForm(data);
+    
     const status = document.getElementById('newopp-fetch-status');
     if (status) status.innerHTML = '<span class="ok">✓ Données importées via bookmarklet — vérifiez et calculez</span>';
-    // Nettoyer URL
+    
+    // Nettoyer URL sans recharger la page
     window.history.replaceState({}, '', window.location.pathname);
+    
+    // Scroller vers le formulaire
+    document.getElementById('newopp-content')?.scrollIntoView({ behavior: 'smooth' });
+    
   } catch(e) {
     console.error('Prefill error:', e);
   }
