@@ -1,17 +1,20 @@
-// js/new-opportunity.js — Module saisie manuelle / par URL d'opportunité
-import { getState } from './state.js';
-import { computeLanded, computeResalePrice } from './calc.js';
-import { getComparablesCH, buildAS24chSearchUrl } from './db.js';
-import { FLAGS, COUNTRY_NAMES, MODELS, LEGAL, SPECS, DEFAULTS } from './config.js';
+// js/new-opportunity.js — Saisie manuelle / par URL d\'opportunité
+// Refactor : utilise compute.js (même logique que search.js)
+import { MODELS } from './config.js';
+import { computeListing, fmt, renderLandedHTML, renderResaleHTML, renderMargeHTML, renderCashflowHTML } from './compute.js';
+import { startSelectionForOpportunity, consumeSelection } from './benchmark.js';
 
 let _rendered = false;
-let _currentListing = null;
 let _currentResult = null;
+let _currentBenchmarkSelection = null;
+let _customResalePrice = null;
 
 export async function initNewOpportunity() {
   if (_rendered) return;
   _rendered = true;
   _buildUI();
+  _checkPrefill(); // Si bookmarklet ou URL ?prefill=
+  _checkBenchmarkReturn(); // Si retour depuis page benchmark
 }
 
 function _buildUI() {
@@ -23,21 +26,40 @@ function _buildUI() {
   const lrOpts = MODELS.landrover.map(m =>
     `<option value="${m.slug}">${m.label}</option>`).join('');
 
+  // Bookmarklet code (compressé)
+  const bookmarkletCode = _buildBookmarkletCode();
+  
   container.innerHTML = `
     <div class="newopp-section">
-      <h3>Analyser une opportunité</h3>
-      <p class="newopp-help">Collez l'URL d'une annonce AutoScout24 ou remplissez manuellement.</p>
+      <h3>1. Importer une annonce</h3>
+      <p class="newopp-help">3 méthodes pour analyser une opportunité :</p>
       
-      <div class="newopp-url-row">
-        <input type="url" id="newopp-url" placeholder="https://www.autoscout24.com/offers/..." style="flex:1">
-        <button class="btn btn-g" id="newopp-fetch">🔍 Analyser l'URL</button>
+      <div class="newopp-method">
+        <strong>A. URL AS24.com</strong> (parsing automatique côté serveur)
+        <div class="newopp-url-row">
+          <input type="url" id="newopp-url" placeholder="https://www.autoscout24.com/offers/..." style="flex:1">
+          <button class="btn btn-g" id="newopp-fetch">🔍 Analyser l\'URL</button>
+        </div>
+        <div id="newopp-fetch-status" class="newopp-status"></div>
       </div>
       
-      <div id="newopp-fetch-status" class="newopp-status"></div>
+      <div class="newopp-method">
+        <strong>B. Bookmarklet "+ KARZ"</strong> (Mobile.de + AS24.ch + tout site)
+        <p class="newopp-help-sm">
+          Glissez ce bouton dans votre barre de favoris Chrome, puis cliquez-le sur n\'importe quelle annonce auto.
+        </p>
+        <a class="bookmarklet-btn" href="${bookmarkletCode}" onclick="event.preventDefault(); alert('Glissez ce bouton dans votre barre de favoris (ne pas cliquer)')">
+          + KARZ
+        </a>
+      </div>
+      
+      <div class="newopp-method">
+        <strong>C. Saisie manuelle</strong> (formulaire ci-dessous)
+      </div>
     </div>
 
     <div class="newopp-section">
-      <h3>Caractéristiques du véhicule</h3>
+      <h3>2. Caractéristiques du véhicule</h3>
       <div class="newopp-grid">
         <div class="newopp-fg">
           <label>Marque</label>
@@ -105,6 +127,10 @@ function _buildUI() {
           <label>Nom du vendeur (optionnel)</label>
           <input type="text" id="newopp-seller-name" placeholder="Porsche Centre Stuttgart">
         </div>
+        <div class="newopp-fg" style="grid-column:span 2">
+          <label>URL annonce (optionnel)</label>
+          <input type="url" id="newopp-listing-url" placeholder="https://...">
+        </div>
       </div>
       
       <div class="newopp-actions">
@@ -135,14 +161,11 @@ export function onBrandChange() {
 async function _handleFetchUrl() {
   const url = document.getElementById('newopp-url').value.trim();
   const status = document.getElementById('newopp-fetch-status');
-  
   if (!url) {
     status.innerHTML = '<span class="warn">Saisissez une URL</span>';
     return;
   }
-  
   status.innerHTML = '<span class="loading">⏳ Analyse en cours…</span>';
-  
   try {
     const res = await fetch('/api/fetch-listing', {
       method: 'POST',
@@ -150,13 +173,10 @@ async function _handleFetchUrl() {
       body: JSON.stringify({ url }),
     });
     const data = await res.json();
-    
     if (!data.success) {
-      status.innerHTML = `<span class="warn">⚠ ${data.error || "Échec de l'analyse"}</span>`;
+      status.innerHTML = `<span class="warn">⚠ ${data.error || 'Echec de l\'analyse'}</span>`;
       return;
     }
-    
-    // Remplir le formulaire avec les données extraites
     _fillForm(data.listing);
     status.innerHTML = '<span class="ok">✓ Données extraites — vérifiez et calculez</span>';
   } catch(e) {
@@ -167,11 +187,9 @@ async function _handleFetchUrl() {
 function _fillForm(listing) {
   const setVal = (id, val) => {
     const el = document.getElementById(id);
-    if (el && val !== null && val !== undefined) el.value = val;
+    if (el && val !== null && val !== undefined && val !== '') el.value = val;
   };
-  
   setVal('newopp-brand', listing.brand);
-  // Trigger model select rebuild
   if (listing.brand) onBrandChange();
   setVal('newopp-model', listing.model_slug);
   setVal('newopp-version', listing.version);
@@ -182,84 +200,14 @@ function _fillForm(listing) {
   setVal('newopp-country', listing.country);
   setVal('newopp-seller', listing.seller_type);
   setVal('newopp-seller-name', listing.seller_name);
-  
-  _currentListing = listing;
-}
-
-async function _handleCalculate() {
-  const listing = _readForm();
-  
-  if (!listing.brand || !listing.model_slug || !listing.price_eur_ttc) {
-    alert('Marque, modèle et prix sont obligatoires.');
-    return;
-  }
-  
-  const resultEl = document.getElementById('newopp-result');
-  resultEl.style.display = 'block';
-  resultEl.innerHTML = '<div class="loading">Calcul en cours…</div>';
-  
-  // Calcul similaire à search.js
-  const state = getState();
-  const FX_RAW = state.params?.FX || DEFAULTS.FX;
-  const fxSafe = (FX_RAW > 0.80 && FX_RAW < 1.20) ? FX_RAW : DEFAULTS.FX;
-  const TVA_MODE_B = state.params?.TVA_MODE_B || DEFAULTS.TVA_MODE_B;
-  const TRANSPORT  = state.params?.TRANSPORT  || DEFAULTS.TRANSPORT;
-  const tvaMode = TVA_MODE_B ? 'B' : 'A';
-  
-  // Find spec
-  const spec = _findSpec(listing);
-  
-  const vatOrigin = LEGAL.VAT_BY_COUNTRY[listing.country] || 0.20;
-  const isPro = listing.seller_type === 'pro';
-  const priceTTC = listing.price_eur_ttc;
-  const priceHT_EUR = isPro ? Math.round(priceTTC / (1 + vatOrigin)) : priceTTC;
-  const priceHT_CHF = Math.round(priceHT_EUR * fxSafe);
-  
-  // Months
-  let monthsReg = 99;
-  if (listing.year) {
-    monthsReg = Math.round((Date.now() - new Date(listing.year, 6, 1).getTime()) / (30 * 24 * 3600 * 1000));
-  }
-  
-  const landed = spec
-    ? computeLanded(priceHT_CHF, spec, monthsReg, listing.km || 0, tvaMode, null, TRANSPORT)
-    : null;
-  
-  // Comparables CH
-  let comparablesResult = null;
-  if (listing.model_slug && listing.year && listing.km) {
-    try {
-      const { rows, level, label } = await getComparablesCH({
-        model_slug: listing.model_slug,
-        fuel_type: listing.fuel_type,
-        version: listing.version,
-        year: listing.year,
-        km: listing.km,
-      });
-      comparablesResult = { rows, level, label };
-    } catch(e) {}
-  }
-  
-  const resale = spec
-    ? computeResalePrice(spec, listing.year, listing.km, null, comparablesResult)
-    : null;
-  
-  let marge = null;
-  if (landed && resale && resale.price !== null) {
-    const revenu = tvaMode === 'B'
-      ? Math.round(resale.price / (1 + LEGAL.VAT_CH))
-      : resale.price;
-    marge = Math.round(revenu - landed.total);
-  }
-  
-  _currentResult = { listing, spec, landed, resale, marge, fxSafe, tvaMode, priceHT_EUR, priceHT_CHF, vatOrigin, isPro, monthsReg };
-  _renderResult();
+  setVal('newopp-listing-url', listing.listing_url);
 }
 
 function _readForm() {
   return {
     brand:         document.getElementById('newopp-brand').value,
     model_slug:    document.getElementById('newopp-model').value,
+    model_full:    document.getElementById('newopp-version').value || document.getElementById('newopp-model').value,
     version:       document.getElementById('newopp-version').value || null,
     year:          parseInt(document.getElementById('newopp-year').value) || null,
     km:            parseInt(document.getElementById('newopp-km').value) || null,
@@ -268,124 +216,139 @@ function _readForm() {
     country:       document.getElementById('newopp-country').value || 'DE',
     seller_type:   document.getElementById('newopp-seller').value || 'pro',
     seller_name:   document.getElementById('newopp-seller-name').value || '—',
-    listing_url:   document.getElementById('newopp-url').value || null,
+    listing_url:   document.getElementById('newopp-listing-url').value || null,
   };
 }
 
-function _findSpec(listing) {
-  const brand = listing.brand || '';
-  if (!brand) return null;
-  const specKeys = Object.keys(SPECS).filter(k => k.startsWith(brand + ' '));
-
-  if (listing.version) {
-    const variant = listing.version.replace(/\*.*$/, '').replace(/\s+/g, ' ').trim();
-    const keyExact = `${brand} ${variant}`;
-    if (SPECS[keyExact]) return SPECS[keyExact];
-    const sortedKeys = [...specKeys].sort((a, b) => b.length - a.length);
-    for (const specKey of sortedKeys) {
-      const specSuffix = specKey.slice(brand.length + 1);
-      if (variant.toLowerCase().startsWith(specSuffix.toLowerCase())) {
-        return SPECS[specKey];
-      }
+async function _handleCalculate() {
+  const listing = _readForm();
+  if (!listing.brand || !listing.model_slug || !listing.price_eur_ttc) {
+    alert('Marque, modèle et prix sont obligatoires.');
+    return;
+  }
+  const resultEl = document.getElementById('newopp-result');
+  resultEl.style.display = 'block';
+  resultEl.innerHTML = '<div class="loading">Calcul en cours…</div>';
+  
+  // UTILISE COMPUTE.JS (avec ou sans sélection benchmark)
+  _currentResult = await computeListing(listing, _currentBenchmarkSelection);
+  
+  // Override prix de revente custom si défini
+  if (_customResalePrice && _currentResult.resale) {
+    _currentResult.resale.price = _customResalePrice;
+    _currentResult.resale.p25 = _customResalePrice;
+    _currentResult.resale.label = `Prix retenu manuellement : CHF ${_customResalePrice.toLocaleString('fr-CH')}`;
+    // Recalculer marge
+    if (_currentResult.landed) {
+      const revenu = _currentResult.tvaMode === 'B'
+        ? Math.round(_customResalePrice / 1.081)
+        : _customResalePrice;
+      _currentResult.marge = Math.round(revenu - _currentResult.landed.total);
+      _currentResult.margeBlocked = false;
     }
   }
-  if (listing.model_slug) {
-    const allModels = [...MODELS.porsche, ...MODELS.landrover];
-    const m = allModels.find(m => m.slug === listing.model_slug);
-    if (m) {
-      const key = `${brand} ${m.label}`;
-      if (SPECS[key]) return SPECS[key];
-    }
-    const slug = listing.model_slug.toLowerCase().replace(/-/g, ' ');
-    const candidates = specKeys.filter(k => k.toLowerCase().includes(slug)).sort((a, b) => a.length - b.length);
-    if (candidates.length) return SPECS[candidates[0]];
-  }
-  return null;
-}
-
-function fmt(n) {
-  if (n === null || n === undefined || isNaN(n)) return '—';
-  return Math.round(n).toLocaleString('fr-CH');
+  _renderResult();
 }
 
 function _renderResult() {
-  const { listing, spec, landed, resale, marge, fxSafe, tvaMode, priceHT_EUR, priceHT_CHF, vatOrigin, isPro, monthsReg } = _currentResult;
+  const result = _currentResult;
   const resultEl = document.getElementById('newopp-result');
   
-  const margeNum = (marge !== null && !isNaN(marge)) ? marge : null;
-  const margeCls = margeNum === null ? '' : margeNum >= 0 ? 'profit' : 'loss';
-  const vatPct = Math.round(vatOrigin * 100);
-  const vatDeduct = isPro ? priceHT_EUR ? Math.round(listing.price_eur_ttc - priceHT_EUR) : 0 : 0;
-  const co2 = landed?.co2;
+  // Section "Prix de revente final" — synthèse M1 (comparables) vs M2 (dépréciation)
+  const m1Price = _currentBenchmarkSelection && _currentBenchmarkSelection.length 
+    ? Math.round(_currentBenchmarkSelection.map(b => b.price_chf).filter(p => p > 0).sort((a,b) => a-b)[Math.floor(_currentBenchmarkSelection.length * 0.25)])
+    : null;
   
-  const as24chUrl = buildAS24chSearchUrl(listing);
+  // M2 = dépréciation pure (recalculer si on a un spec)
+  const m2Price = result.spec && result.spec.msrp ? _calculateDepreciationOnly(result.spec, result.listing.year, result.listing.km) : null;
   
-  const landedHTML = landed ? `
-    <div class="newopp-block">
-      <div class="newopp-block-title">LANDED COST</div>
-      <div class="ds-row"><span>Prix annonce</span><span>€${fmt(listing.price_eur_ttc)} TTC</span></div>
-      ${isPro ? `<div class="ds-row deduct"><span>− TVA ${listing.country} ${vatPct}%</span><span>− €${fmt(vatDeduct)}</span></div>
-      <div class="ds-row bold"><span>= Prix HT export</span><span>€${fmt(priceHT_EUR)} HT</span></div>` : 
-      `<div class="ds-row note"><span>Vendeur particulier — TVA non déductible</span><span></span></div>`}
-      <div class="ds-row"><span>× FX EUR/CHF ${fxSafe.toFixed(4)}</span><span>= CHF ${fmt(priceHT_CHF)}</span></div>
-      <div class="ds-sep"></div>
-      <div class="ds-row cost"><span>+ Transport</span><span>+ CHF ${fmt(landed.transport)}</span></div>
-      <div class="ds-row cost"><span>+ Impôt fédéral 4%</span><span>+ CHF ${fmt(landed.autoTax)}</span></div>
-      <div class="ds-row cost"><span>+ Frais fixes</span><span>+ CHF ${fmt(landed.fixedFees)}</span></div>
-      <div class="ds-row ${tvaMode === 'B' ? 'zero' : 'cost'}">
-        <span>+ TVA CH 8.1% ${tvaMode === 'B' ? '(Mode B récupérable)' : '(Mode A définitif)'}</span>
-        <span>${tvaMode === 'B' ? 'CHF 0' : '+ CHF ' + fmt(landed.vatInLanded)}</span>
-      </div>
-      <div class="ds-row ${co2?.penalty > 0 ? 'cost' : 'zero'}">
-        <span>+ CO2 OFEN ${co2?.exempt ? `<span class="ds-src ok">✓ Exempté</span>` : ''}</span>
-        <span>${co2?.penalty > 0 ? '+ CHF ' + fmt(co2.penalty) : 'CHF 0'}</span>
-      </div>
-      <div class="ds-sep"></div>
-      <div class="ds-row total"><span>= LANDED NET</span><span>CHF ${fmt(landed.total)}</span></div>
-    </div>` : 
-    `<div class="newopp-block warn">⚠ Modèle non identifié — landed non calculable</div>`;
+  const finalPrice = result.resale?.price || null;
   
-  const resaleHTML = resale && resale.price ? `
-    <div class="newopp-block">
-      <div class="newopp-block-title">REVENTE CH</div>
-      <div class="ds-note">${resale.label || 'Estimation'}</div>
-      <div class="rs-stats-grid">
-        <div class="rs-stat-item primary">
-          <div class="rs-stat-l">P25 cible</div>
-          <div class="rs-stat-v">CHF ${fmt(resale.p25)}</div>
+  const resaleSection = `
+    <div class="detail-section resale-methods-section">
+      <div class="ds-title">PRIX DE REVENTE — DOUBLE MÉTHODOLOGIE</div>
+      
+      <div class="resale-methods-grid">
+        <div class="resale-method ${m1Price ? 'active' : ''}">
+          <div class="rm-label">M1 — Comparables CH ${_currentBenchmarkSelection ? '(' + _currentBenchmarkSelection.length + ' sélectionnés)' : ''}</div>
+          <div class="rm-price">${m1Price ? 'CHF ' + fmt(m1Price) : '—'}</div>
+          <button class="btn-sm btn-g" id="newopp-select-comparables">📊 ${_currentBenchmarkSelection ? 'Modifier sélection' : 'Choisir comparables'}</button>
         </div>
-        ${resale.p50 ? `<div class="rs-stat-item"><div class="rs-stat-l">Médiane</div><div class="rs-stat-v">CHF ${fmt(resale.p50)}</div></div>` : ''}
-        ${resale.p75 ? `<div class="rs-stat-item"><div class="rs-stat-l">P75</div><div class="rs-stat-v">CHF ${fmt(resale.p75)}</div></div>` : ''}
+        
+        <div class="resale-method">
+          <div class="rm-label">M2 — Dépréciation MSRP</div>
+          <div class="rm-price">${m2Price ? 'CHF ' + fmt(m2Price) : '—'}</div>
+          <div class="rm-sub">${result.spec ? 'MSRP CHF ' + fmt(result.spec.msrp) : 'Spec non trouvé'}</div>
+        </div>
       </div>
-    </div>` :
-    `<div class="newopp-block warn">⚠ Benchmark CH indisponible</div>`;
-  
-  const margeHTML = `
-    <div class="newopp-block detail-marge ${margeCls}">
-      <span>MARGE ${tvaMode === 'B' ? 'NETTE HT (Mode B)' : 'NETTE TTC (Mode A)'}</span>
-      <span class="marge-val">${
-        margeNum !== null ? 'CHF ' + (margeNum >= 0 ? '+' : '') + fmt(margeNum)
-        : '— Benchmark requis'
-      }</span>
+      
+      <div class="final-price-row">
+        <label>Prix de revente retenu (CHF) :</label>
+        <input type="number" id="newopp-custom-resale" value="${_customResalePrice || finalPrice || ''}" placeholder="${finalPrice || '—'}">
+        <button class="btn btn-g btn-sm" id="newopp-recalc">↻ Recalculer marge</button>
+      </div>
+      <div class="rm-help">Pré-rempli avec ${_currentBenchmarkSelection ? 'la sélection comparables' : (result.resale ? result.resale.label : 'l\'estimation auto')} — éditable</div>
     </div>`;
   
   resultEl.innerHTML = `
     <h3>Analyse complète</h3>
-    ${landedHTML}
-    ${resaleHTML}
-    ${margeHTML}
+    ${renderLandedHTML(result)}
+    ${renderCashflowHTML(result)}
+    ${resaleSection}
+    ${renderMargeHTML(result)}
     <div class="newopp-actions">
-      <a class="btn-as24-ch" href="${as24chUrl}" target="_blank">🇨🇭 Voir le marché CH (AS24.ch)</a>
+      <a class="btn-as24-ch" href="${result.as24chUrl}" target="_blank">🇨🇭 Voir AS24.ch</a>
       <button class="btn btn-g" id="newopp-add-pipeline">+ Ajouter au pipeline</button>
     </div>
   `;
   
   document.getElementById('newopp-add-pipeline').addEventListener('click', _handleAddPipeline);
+  document.getElementById('newopp-select-comparables').addEventListener('click', _handleSelectComparables);
+  document.getElementById('newopp-recalc').addEventListener('click', _handleRecalc);
+}
+
+function _calculateDepreciationOnly(spec, year, km) {
+  if (!spec || !spec.msrp) return null;
+  const currentYear = new Date().getFullYear();
+  let ageYears = Math.max(1, currentYear - (year || currentYear));
+  const rates = { 1:0.18, 2:0.14, 3:0.11, 4:0.09, 5:0.09 };
+  let val = spec.msrp;
+  for (let y = 1; y <= ageYears; y++) {
+    val *= (1 - (rates[y] || 0.07));
+  }
+  const normKm = 15000 * Math.max(ageYears, 1);
+  const excessKm = Math.max(0, (km || 0) - normKm);
+  const kmPenalty = (excessKm / 10000) * 0.003;
+  val *= (1 - kmPenalty);
+  return Math.round(val / 500) * 500;
+}
+
+function _handleSelectComparables() {
+  const listing = _readForm();
+  startSelectionForOpportunity(listing, 'newopp');
+}
+
+function _handleRecalc() {
+  const customPrice = parseInt(document.getElementById('newopp-custom-resale').value) || null;
+  _customResalePrice = customPrice;
+  _handleCalculate();
+}
+
+function _checkBenchmarkReturn() {
+  const selection = consumeSelection();
+  if (selection && selection.length > 0) {
+    _currentBenchmarkSelection = selection;
+    // Re-trigger calculation if we already have a result
+    setTimeout(() => {
+      if (document.getElementById('newopp-brand')?.value) {
+        _handleCalculate();
+      }
+    }, 100);
+  }
 }
 
 async function _handleAddPipeline() {
   if (!_currentResult) return;
-  // Réutiliser pipeline.addFromListing
   const listingJson = JSON.stringify(_currentResult.listing);
   const fakeEvent = { stopPropagation: () => {} };
   window.KARZ.pipeline.addFromListing(fakeEvent, JSON.stringify(listingJson));
@@ -393,13 +356,107 @@ async function _handleAddPipeline() {
 
 function _handleReset() {
   ['newopp-url','newopp-brand','newopp-model','newopp-version','newopp-year',
-   'newopp-km','newopp-fuel','newopp-price','newopp-seller-name'].forEach(id => {
+   'newopp-km','newopp-fuel','newopp-price','newopp-seller-name','newopp-listing-url'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
   document.getElementById('newopp-country').value = 'DE';
   document.getElementById('newopp-seller').value = 'pro';
   document.getElementById('newopp-fetch-status').innerHTML = '';
   document.getElementById('newopp-result').style.display = 'none';
-  _currentListing = null;
   _currentResult = null;
+}
+
+// ══════════════════════════════════════════════════════════════
+// PREFILL depuis URL (?prefill=...) — utilisé par le bookmarklet
+// ══════════════════════════════════════════════════════════════
+function _checkPrefill() {
+  const params = new URLSearchParams(window.location.search);
+  const prefillRaw = params.get('prefill');
+  if (!prefillRaw) return;
+  try {
+    const data = JSON.parse(decodeURIComponent(prefillRaw));
+    _fillForm(data);
+    const status = document.getElementById('newopp-fetch-status');
+    if (status) status.innerHTML = '<span class="ok">✓ Données importées via bookmarklet — vérifiez et calculez</span>';
+    // Nettoyer URL
+    window.history.replaceState({}, '', window.location.pathname);
+  } catch(e) {
+    console.error('Prefill error:', e);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// BOOKMARKLET — code injecté qui tourne sur AS24/Mobile.de etc.
+// ══════════════════════════════════════════════════════════════
+function _buildBookmarkletCode() {
+  // Code qui s\'exécute sur la page d\'annonce visitée
+  // Doit être minifié et préfixé "javascript:"
+  const code = `(function(){
+    var KARZ_URL = '${window.location.origin}';
+    var listing = { listing_url: window.location.href };
+    var host = window.location.hostname;
+    
+    try {
+      // Tenter de lire __NEXT_DATA__ (AS24, AS24.ch, Mobile.de)
+      var nextEl = document.getElementById('__NEXT_DATA__');
+      if (nextEl) {
+        var d = JSON.parse(nextEl.textContent);
+        var pp = (d.props && d.props.pageProps) || {};
+        var item = pp.listingDetails || pp.detail || pp.listing || pp.detailItem || pp.vehicleDetails || {};
+        var v = item.vehicle || {};
+        var t = item.tracking || {};
+        var price = item.prices && item.prices.public || item.price || {};
+        var seller = item.seller || item.dealer || {};
+        var loc = item.location || {};
+        
+        var priceFmt = price.priceFormatted || '';
+        var priceNum = parseInt(String(price.priceRaw || price.amount || priceFmt).replace(/[^0-9]/g, '')) || 0;
+        var isCHF = priceFmt.indexOf('CHF') >= 0 || priceFmt.indexOf('Fr.') >= 0;
+        
+        var firstReg = t.firstRegistration || v.firstRegistration || '';
+        var yearM = String(firstReg).match(/\\b(20[0-2][0-9])\\b/);
+        
+        var FUEL = {b:'essence',d:'diesel',e:'electrique',m:'hybride',p:'hybride'};
+        var fuel = FUEL[t.fuelType] || (function(){
+          var f = String(v.fuel || '').toLowerCase();
+          if(f.indexOf('diesel')>=0)return 'diesel';
+          if(f.indexOf('electric')>=0||f.indexOf('elektr')>=0)return 'electrique';
+          if(f.indexOf('hybrid')>=0)return 'hybride';
+          if(f.indexOf('gas')>=0||f.indexOf('petrol')>=0||f.indexOf('benzin')>=0)return 'essence';
+          return null;
+        })();
+        
+        var make = (v.make || '').toString();
+        listing.brand = make.toLowerCase()==='porsche' ? 'Porsche' : (make.toLowerCase().indexOf('land')>=0 ? 'Land Rover' : make);
+        listing.model_slug = (v.model || '').toString().toLowerCase().replace(/\\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+        listing.model_full = ((v.make||'')+' '+(v.model||'')+' '+(v.variant||'')).trim().replace(/\\s+/g,' ');
+        listing.version = v.variant || v.modelVersionInput || null;
+        listing.year = yearM ? parseInt(yearM[1]) : null;
+        listing.km = parseInt(t.mileage || v.mileageInKm || 0) || null;
+        listing.fuel_type = fuel;
+        listing.price_eur_ttc = isCHF ? null : priceNum;
+        listing.price_chf_ttc = isCHF ? priceNum : null;
+        listing.country = (loc.countryCode || (host.indexOf('.ch')>=0 ? 'CH' : (host.indexOf('mobile.de')>=0 ? 'DE' : 'DE'))).toUpperCase();
+        listing.seller_type = (seller.type||'').toLowerCase().indexOf('d')===0 ? 'pro' : 'private';
+        listing.seller_name = seller.companyName || seller.name || '';
+      }
+    } catch(e) {}
+    
+    // Si rien extrait, demander confirmation manuelle
+    if (!listing.price_eur_ttc && !listing.price_chf_ttc) {
+      var p = prompt('Prix non détecté. Saisissez le prix (chiffre uniquement) :');
+      if (p) {
+        var n = parseInt(p.replace(/[^0-9]/g, ''));
+        if (host.indexOf('.ch')>=0) listing.price_chf_ttc = n;
+        else listing.price_eur_ttc = n;
+      }
+    }
+    
+    var url = KARZ_URL + '/?prefill=' + encodeURIComponent(JSON.stringify(listing)) + '&page=newopp';
+    window.open(url, '_blank');
+  })();`;
+  
+  // Encoder pour href: javascript:
+  const minified = code.replace(/\s+/g, ' ').replace(/\s*([{}();,])\s*/g, '$1');
+  return 'javascript:' + encodeURIComponent(minified);
 }
