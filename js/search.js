@@ -247,7 +247,7 @@ function _renderCard(result, idx) {
         <div class="rc-marge-preview ${margeCls}">
           ${margeBlocked
             ? '<span class="warn-sm">⚠ Benchmark requis</span>'
-            : margeNum !== null ? 'CHF ' + (margeNum >= 0 ? '+' : '') + fmt(margeNum) : '—'}
+            : margeNum !== null ? '~CHF ' + (margeNum >= 0 ? '+' : '') + fmt(margeNum) : '—'}
         </div>
       </div>
       <div class="rc-chevron">▼</div>
@@ -259,6 +259,9 @@ function _renderCard(result, idx) {
       ${renderLandedHTML(result)}
       ${renderResaleHTML(result)}
       ${renderMargeHTML(result)}
+      <div class="rc-estimation-note">
+        ⓘ Marge estimée par dépréciation MSRP — pour une marge précise, analysez via <b>+ NOUVEAU</b> avec sélection de comparables CH.
+      </div>
       <div class="rc-actions">
         <a class="btn-as24-ch" href="${as24chUrl}" target="_blank" onclick="event.stopPropagation()">
           🇨🇭 Voir le marché CH (AS24.ch)
